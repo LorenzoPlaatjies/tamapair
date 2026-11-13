@@ -79,3 +79,7 @@
 - Poke is stronger: bigger push, denser static ring, a 1-frame crackle across the screen.
 - **Swipe on HOME now has its own transition**: sideways tear (face slides out in swipe direction with rows ripping + blue streaks, glitch, new face tears in from the other side). `swipeTo(m, dir)` + `applySwipeTear()`; `setMood()` still does the squash for everything else.
 - I hooked it into your restructured `releaseTouch` (HOME swipe only) — your menu/feed code untouched. Flashed on my board.
+
+## 2026-11-13 — poke harder, and taps/swipes never overlap
+- Poke: whole-screen crackle + row jolt on frames 0–1, bigger ring, wider shove, push 4.4/2.6.
+- Poke no longer fires on touch-down. It fires on release if moved ≤12 px, or after 120 ms held still; moving >12 px cancels it → swipes show only the tear. (`pokePending` in handleTouch.) Flashed on my board.

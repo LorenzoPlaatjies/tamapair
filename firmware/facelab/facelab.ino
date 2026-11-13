@@ -162,7 +162,7 @@ static float pushX = 0, pushY = 0, velX = 0, velY = 0;
 static void addPoke(float x, float y) {
   poke = {x, y, 0, true};                       // one at a time: a new tap restarts it (no pile-up)
   float dx = CX - x, dy = (EY + 2) - y, d = sqrtf(dx * dx + dy * dy); if (d < 1) { dx = 0; dy = 1; d = 1; }
-  velX += dx / d * 3.4f; velY += dy / d * 2.0f; // shove away from the finger
+  velX += dx / d * 4.4f; velY += dy / d * 2.6f; // shove away from the finger
 }
 static void tickPoke() {
   velX += -.28f * pushX; velY += -.28f * pushY; velX *= .74f; velY *= .74f; // damped spring back to centre
@@ -173,11 +173,16 @@ static void tickPoke() {
 }
 static void applyPoke() {
   if (!poke.on) return;
-  int a = poke.a; float R = a * 2.2f, band = 2.0f, dens = .8f * (1 - (float)a / POKE_LIFE);
-  if (a < 1) for (int i = 0; i < W * H / 40; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; // quick crackle across the screen
-  if (a < 4) { // slight shove of the rows right at the finger, outward
-    uint8_t row[W]; int cx = lroundf(poke.x), s = 4 - a;
-    for (int y = max(0, (int)poke.y - 5); y < min(H, (int)poke.y + 6); y++) {
+  int a = poke.a; float R = a * 2.4f, band = 2.4f, dens = .9f * (1 - (float)a / POKE_LIFE);
+  if (a < 2) for (int i = 0; i < W * H / (a ? 40 : 22); i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; // crackle across the screen
+  if (a < 2) { // the whole picture jolts: random rows tear sideways a little
+    uint8_t row[W];
+    for (int y = 0; y < H; y++) { if (random(100) >= 30) continue; int sh = random(5) - 2; if (!sh) continue;
+      memcpy(row, buf + y * W, W); for (int x = 0; x < W; x++) buf[y * W + x] = row[(x - sh + W) % W]; }
+  }
+  if (a < 5) { // shove of the rows at the finger, outward
+    uint8_t row[W]; int cx = lroundf(poke.x), s = 5 - a;
+    for (int y = max(0, (int)poke.y - 7); y < min(H, (int)poke.y + 8); y++) {
       memcpy(row, buf + y * W, W);
       for (int x = 0; x < W; x++) { int from = x > cx ? x - s : x < cx ? x + s : x; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
     }
@@ -451,12 +456,20 @@ static bool readTouch(int &x, int &y) {
   return true;
 }
 static bool down = false; static int downX = 0, lastX = 0; static uint32_t downAt = 0;
+static int downY = 0; static bool pokePending = false;
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); if (screen == S_HOME) addPoke(x / (float)S, (y - OY) / (float)S); }
-  else if (t) lastX = x;
-  else if (!t && down) { down = false; Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); releaseTouch(lastX - downX, downX); }
+  if (t && !down) { down = true; downX = lastX = x; downY = y; downAt = millis(); pokePending = screen == S_HOME; Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); }
+  else if (t) {
+    lastX = x;
+    if (abs(x - downX) > 12) pokePending = false;                             // it's a swipe: no poke, only the swipe tear
+    else if (pokePending && millis() - downAt > 120) { pokePending = false; addPoke(downX / (float)S, (downY - OY) / (float)S); } // held still = poke
+  }
+  else if (!t && down) {
+    down = false; if (pokePending && abs(lastX - downX) <= 12) addPoke(downX / (float)S, (downY - OY) / (float)S); pokePending = false;
+    Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); releaseTouch(lastX - downX, downX);
+  }
 }
 void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   {
