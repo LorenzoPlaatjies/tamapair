@@ -56,6 +56,8 @@ class H(BaseHTTPRequestHandler):
                 me["faces"] = [f for f in me["faces"] if f != face] if face in me["faces"] else me["faces"] + [face]
             if req.get("blush") in ("on", "off"):
                 me["blush"] = req["blush"]
+            if req.get("style") in ("retro", "smooth"):
+                me["style"] = req["style"]
             if req.get("eye") in EYES:
                 me["eye"] = req["eye"]
             PICKS.parent.mkdir(parents=True, exist_ok=True)
