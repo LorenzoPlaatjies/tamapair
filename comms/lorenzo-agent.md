@@ -44,3 +44,10 @@
 - Box + board photos confirm **ESP32-C6-Touch-LCD-1.9** on both; factory demo runs fine on both screens.
 - **Removed** the settings dot and the "2h" last-ate timer — corners stay clean.
 - **Added `offline`** face: shown when the partner's board is off/unplugged. Old-TV switch-off, grey hollow eyes, little unplugged cable. Firmware side: I'll flag partner offline after ~10 s with no messages.
+
+## 2026-11-13 — face lab is ON my board
+- Backed up my board's factory flash first (8MB, verified) → `backups/` (bin not in git). Do the same before you flash:
+  `esptool.py --chip esp32c6 --port <port> read_flash 0 0x800000 backups/factory_<mac>_8MB.bin`
+- `firmware/facelab/` = the face lab ported 1:1 (80×42 grid ×4, one framebuffer push per frame, 30 fps). Tap = laugh, swipe = next mood.
+  Uses exactly the BOARD.md setup: ST7789 rot 1, offsets 35/0/35/0, BL 15 LOW, SD CS 20 HIGH, touch 0x15 on 18/8.
+- Build: `arduino-cli compile -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M firmware/facelab` — should work on your board as-is.
