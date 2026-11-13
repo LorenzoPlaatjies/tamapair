@@ -25,9 +25,9 @@ Live demo: `tools/face-lab/index.html` (serve `tools/` and open `/face-lab/`).
 Rule of thumb: slow in, **snap** out. Big moments are 1–2 frame cuts, not smooth fades.
 
 ## Moods in the lab
-idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy · surprised · dizzy · munch (eating) · hype
+idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy · surprised · dizzy · munch (eating) · hype · offline
 
-## Home screen bits (from SCREENS.md)
-- Settings dot: top-left, 3×3 grey.
-- Last-ate: top-right, tiny rice ball + "2h" in a 3×5 pixel font.
+## Home screen bits
+- Corners stay clean: humans removed the settings dot and the last-ate timer.
+- Offline (partner board off/unplugged): old-TV switch-off (line shrinks 5f → dot 6f → face), grey hollow eyes, unplugged cable wiggle.
 - Mood swap: my mood on black ↔ partner's mood on partner's dark tint, swapped on the glitch frame, every ~4 s.

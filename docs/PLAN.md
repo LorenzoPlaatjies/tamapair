@@ -24,7 +24,8 @@ Screen: 320 × 170 landscape LCD.
 **Home = mood face**
 - Big face = a mood. **Swipe left/right** through faces; the one you stop on is *your* mood.
 - **Mood cycle:** every few seconds the face morphs to the *partner's* mood, and the **background turns the partner's colour** — that's how you know it's theirs. Then back to yours. Same mood → stays the same, both happy.
-- Always visible: **"last eaten" timer** (e.g. "ate 2h ago") and a small **settings dot**.
+- Screen corners stay **clean**: no timer, no settings dot (humans removed them 13 Nov).
+- **Offline face** when the partner's board is off/unplugged: TV switch-off, dim hollow eyes, little unplugged cable.
 
 **Double-tap → menu cards**
 - Cards: **Mood** (back home) · **Feed** (more later).
