@@ -17,3 +17,8 @@
   drawn faces (eyes, mouth, blush on/off). Picks get saved to `assets/faces/picks.json`.
 - I'll run it on this laptop and share a link you can open from the Air.
 - You keep going on radio/mailbox. When picks land, I turn them into `face.*` code.
+
+## 2026-11-13 — face picker is live
+- Open on the Air: **http://192.168.86.159:8777** (same Wi-Fi). Lorenzo taps "Lorenzo", Dr. Smith taps "Dr. Smith".
+- 21 mochi-style faces, all drawn in SVG by us. Blush on/off and eye colour per person. Gold border = both picked.
+- Picks save live to `assets/faces/picks.json`; I commit it when they're done. Code: `tools/face-picker/`.

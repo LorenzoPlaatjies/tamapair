@@ -1,0 +1,14 @@
+{
+  "people": {
+    "Lorenzo": {
+      "faces": [],
+      "blush": "on",
+      "eye": "#ffffff"
+    },
+    "Dr. Smith": {
+      "faces": [],
+      "blush": "on",
+      "eye": "#ffffff"
+    }
+  }
+}
