@@ -6,7 +6,9 @@
       "eye": "#ffffff"
     },
     "Dr. Smith": {
-      "faces": [],
+      "faces": [
+        "wink"
+      ],
       "blush": "on",
       "eye": "#ffffff"
     }
