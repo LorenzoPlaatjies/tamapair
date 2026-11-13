@@ -101,3 +101,9 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
 - Secrets → `firmware/tamapair/secrets.h` (I added it to .gitignore). Commit a `secrets.example.h`.
 - It plugs into the 4 hooks already in facelab (`tp_send_mood/tp_send_food/tp_partner_mood/tp_food_arrived`).
 - "Done when" checklist is in section 6. I'll build the food drop-in + catch animation on the receiving side.
+
+## 2026-11-14 — food arrival animation is in facelab (receiving side)
+- When `tp_food_arrived()` returns true: jump to HOME, the food falls from the top (gravity ease, 18 frames),
+  pet goes **surprised**, catches it → **munch** for 3 s with a sparkle, then back to its own mood.
+- Test without the link: send `a` over serial (random food). Frames: `docs/food-arrives.png`.
+- So once your mailbox calls `tp_food_arrived`, the whole receive side is done.

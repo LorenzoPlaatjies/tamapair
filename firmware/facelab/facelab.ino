@@ -354,10 +354,25 @@ static int lastSwipeF = -1, sentMood = -1, sentF = -1;     // stay 3 s on a mood
 static int partnerMood = -1, swapAt = 0; static bool showingPartner = false;
 static const uint16_t PARTNER_BG = 0x2804;                 // dark pink background = partner's mood
 
+// food from the partner: it drops in from the top, the pet gasps (surprised), catches it, then munches 3 s
+static const int SURPRISED = 8, FALL = 18;
+static int arriveF = -1, arriveFood = 0, fakeFood = -1;    // fakeFood: serial test trigger ('a')
+
 static void homeLogic() {
   uint8_t v;
   if (tp_partner_mood(v) && v < NMOODS) partnerMood = v;
-  if (tp_food_arrived(v)) { if (screen != S_HOME) go(S_HOME); showingPartner = false; beforeReact = myMood; setMood(MUNCH); reactUntil = f + 90; }
+  bool got = tp_food_arrived(v);
+  if (!got && fakeFood >= 0) { v = fakeFood; fakeFood = -1; got = true; }
+  if (got && v < NFOODS) {
+    if (screen != S_HOME) go(S_HOME);
+    showingPartner = false; lastSwipeF = -1; reactUntil = -1; beforeReact = myMood;
+    arriveFood = v; arriveF = 0; setMood(SURPRISED);
+    Serial.printf("[face] food arrived %s\n", FOODS[v].name);
+  }
+  if (arriveF >= 0) {
+    if (++arriveF == FALL) { setMood(MUNCH); reactUntil = f + 90; }   // caught it
+    if (arriveF > FALL + 8) arriveF = -1;
+  }
   if (screen != S_HOME) return;
   if (lastSwipeF >= 0 && f - lastSwipeF >= 90) {           // settled for 3 s
     lastSwipeF = -1; swapAt = f + 120;
@@ -414,6 +429,12 @@ static void renderFace() {
   if (swipeDir && phase != HOLD) applySwipeTear();                         // swipe = sideways tear
   applyPoke();                                                             // tap = poke (static ring + push)
   if (sentF >= 0) heart(70 + sentF * .2f, 30 - sentF * 1.4f, 2.2f, 2);   // little heart floats off = sent
+  if (arriveF >= 0 && arriveF < FALL) {                                    // partner's food falls (speeds up like gravity)
+    float t = (float)arriveF / FALL; FOODS[arriveFood].draw(CX, -8 + (MY + 1 + 8) * t * t, .45f);
+  } else if (arriveF >= FALL) {                                            // catch sparkle either side of the mouth
+    int k = arriveF - FALL; uint8_t c = k % 2 ? 1 : 2;
+    px(CX - 7 - k / 2, MY - 3 - k / 2, c); px(CX + 7 + k / 2, MY - 3 - k / 2, c); px(CX - 9 - k / 2, MY - k / 3, c); px(CX + 9 + k / 2, MY - k / 3, c);
+  }
 }
 
 static void renderFrame() {
@@ -520,13 +541,14 @@ void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   }
 }
 
-// ---------- test hooks over USB serial: b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
+// ---------- test hooks over USB serial: a = food arrives, b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
 static void fakeTouch(int dx, int x = 160) { releaseTouch(dx, x); } // same as lifting a finger after moving dx (0 = tap)
 static void handleSerial() {
   while (Serial.available()) {
     char c = Serial.read();
     if (c == 'b') { if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME); }
     else if (c == 'h') go(S_HOME);
+    else if (c == 'a') fakeFood = random(NFOODS);                // pretend the partner sent food
     else if (c == 'p') { if (screen == S_HOME) addPoke(random(W), random(H)); }          // poke at a random spot
     else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
