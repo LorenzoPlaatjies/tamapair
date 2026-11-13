@@ -42,4 +42,4 @@ Two cards: **Mood** (back home) or **Feed**.
 - Screen layout from the humans' sketches (coming as photos).
 - The two people's colours.
 - Settings dot: what's in it.
-- Screen: probably **368 × 448 AMOLED** (ESP32-C6-Touch-AMOLED-1.8). Needs a box photo to confirm.
+- Screen: **320 × 170 landscape** (Waveshare ESP32-C6-LCD-1.9). See docs/BOARD.md.

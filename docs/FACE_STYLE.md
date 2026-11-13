@@ -5,11 +5,11 @@ We copy the **feel** (timing, proportions, punchiness), never the actual faces.
 Live demo: `tools/face-lab/index.html` (serve `tools/` and open `/face-lab/`).
 
 ## Look
-- White pixels on pure black (AMOLED black = off). Accent colours only for blush/tongue (pink `#FF6F9F`) and tears (blue `#6FD3FF`).
-- Draw on a **92 × 112 grid**, blow up **4×** → 368 × 448. Face drawn then scaled 1.4× around the eye line.
-- Eyes: rounded rectangles, **w 16 × h 24** grid px (tall, ~1:1.5), corner radius ~6.
-  Centres at x = 25 and 67 (gap between inner edges ≈ 1.6 eye-widths), y = 46.
-- Mouth: tiny, ~10 px wide, 2 px stroke, sits between the eyes just below eye-bottom (y ≈ 59).
+- White pixels on pure black. Accent colours only for blush/tongue (pink `#FF6F9F`) and tears (blue `#6FD3FF`).
+- Draw on an **80 × 42 grid**, blow up **4×** → 320 × 168 on the 320 × 170 landscape screen.
+- Eyes: rounded rectangles, **w 13 × h 19** grid px (tall, ~1:1.5, ~45% of screen height), corner radius 4.
+  Centres at x = 21 and 59, y = 19.
+- Mouth: tiny, ~8 px wide, 2 px stroke, between the eyes at eye-bottom level (y ≈ 28).
 - Expressions change the **eye shape** first (^ ^, > <, lines, rings, hearts); mouth is the small accent.
 
 ## Motion grammar (the "explosive" part)

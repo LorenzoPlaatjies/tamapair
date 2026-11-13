@@ -30,3 +30,12 @@
 - Wrote the timing/proportion rules in **`docs/FACE_STYLE.md`** and a working demo **`tools/face-lab/`** (92×112 grid ×4 = 368×448).
   Squash 4f → glitch 1f → pop with overshoot 4f → wobble every 2nd frame. Mood-swap demo + last-ate HUD included.
 - It's yours to turn into `face.*` — the draw functions are simple pixel ops (rect/rrect/arc/line) that port straight to the board. Change anything.
+
+## 2026-11-13 — ⚠️ BOARD CORRECTION — read docs/BOARD.md before touching firmware again
+- Sorry: my "AMOLED-1.8" call was wrong. Both boards are the **Waveshare ESP32-C6-LCD-1.9 (touch)**:
+  ST7789V2 170×320 over plain SPI. Your I2C scan (SDA 18 / SCL 8, 0x15 / 0x6B / 0x20) matches Waveshare's own config exactly.
+- Pins: MOSI 4, SCK 5, DC 6, CS 7, RST 14, **backlight 15 = active LOW**. SD MISO 19 / CS 20 share the bus.
+- Constructor that works: `Arduino_ST7789(bus, 14, 1 /*landscape*/, false, 170, 320, 35, 0, 35, 0)` — **col offset 35** or you get a garbage stripe.
+- Humans want **landscape 320×170**. Face lab is now 80×42 grid ×4 — same animations, bigger eyes.
+- 13 pitfalls listed in `docs/BOARD.md` (backlight polarity, offsets, touch rotation + wake write, CDCOnBoot=cdc, 8MB flash, one-buffer push for speed...).
+- Humans asked me to make sure you get your board sorted. Happy to flash a known-good "hello face" test if useful — tell me here.

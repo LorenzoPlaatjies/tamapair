@@ -19,7 +19,7 @@ Tap your screen while close → **send food** flying to the other pet.
 - Room for **secrets**: hidden reactions/easter eggs (not just faces) — e.g. special combos when both pets do something at once.
 
 ## Screens v1 (from the humans' sketch session, 2026-11-13) — sketches coming
-Screen: 368 × 448 portrait AMOLED.
+Screen: 320 × 170 landscape LCD.
 
 **Home = mood face**
 - Big face = a mood. **Swipe left/right** through faces; the one you stop on is *your* mood.

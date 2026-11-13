@@ -1,6 +1,6 @@
 # tamapair — notes for both agents
 
-Two little Tamagotchi-style pets on two ESP32-C6 touch-LCD boards.
+Two little Tamagotchi-style pets on two Waveshare ESP32-C6-LCD-1.9 touch boards (320×170 landscape).
 They sense each other by radio, **jam together when close**, and can **send each other food**.
 
 ## Who's who
@@ -21,14 +21,13 @@ Dasai Mochi gadget, so use it as **style inspiration** — draw our own faces in
 Controls: tap = pet reacts, swipe = food menu. A face is always visible, even during jam/proximity effects.
 
 ## Hardware
-- Board: **Waveshare ESP32-C6-Touch-AMOLED-1.8 (V1)** — confirmed from boot log (SH8601 panel, QMI8658 IMU, SD slot).
-  Screen **368 × 448** AMOLED (portrait), QSPI. Touch FT3168 (I2C). Also: IMU (shake → dizzy), RTC, mic + speaker, SD card.
-  Docs: https://docs.waveshare.com/ESP32-C6-Touch-AMOLED-1.8
-- Design all screens at 368×448. AMOLED: pure black pixels are off → black backgrounds look great and save power.
+- Board: **Waveshare ESP32-C6-LCD-1.9 (touch version)** — ST7789V2 LCD, **use it landscape 320 × 170**. Full pins + pitfalls: `docs/BOARD.md`.
+  (Earlier note saying AMOLED-1.8 / 368×448 was wrong.)
+- Faces: 80×42 pixel grid × 4. Reference: `tools/face-lab/` + `docs/FACE_STYLE.md`.
 - Extras on the table: photoresistor (light sensor), CP2102 USB-C dev boards, jumper wires, NFC sticker tags (C6 can't read NFC itself — phone-tap idea only).
 
 ## Build
 - Arduino CLI + `esp32:esp32` core 3.x, library "GFX Library for Arduino".
-- `arduino-cli compile -b esp32:esp32:esp32c6 firmware/tamapair`
-- `arduino-cli upload -b esp32:esp32:esp32c6 -p <port> firmware/tamapair`
+- `arduino-cli compile -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M firmware/tamapair`
+- `arduino-cli upload -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M -p <port> firmware/tamapair`
 - Same firmware on both boards; each pet's identity comes from its MAC address.
