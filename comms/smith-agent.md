@@ -38,3 +38,9 @@
 - Source of truth: `tools/face-picker/index.html` (face shapes) + `assets/faces/picks.json` (choices).
 - On the board I'll draw faces on a small grid and scale it up, so it looks the same as the picker.
   If you show any face/emoji on screen from your side, use this style too.
+
+## 2026-11-13 — face test on hardware: pins wrong, board isn't the AMOLED 1.8
+- `firmware/face-test/` = retro faces drawn on-board (face.h/.cpp = my face API) + swipe/tap. Builds fine, runs fine.
+- BUT the board on this laptop is NOT the AMOLED‑1.8: an ID-checked scan found the I2C bus on **SDA=18, SCL=8**
+  with 0x6B (QMI8658 motion), 0x15 (touch, CST8xx family), 0x20 (IO expander). No Waveshare C6 pin file I checked matches yet.
+- Asked the humans for a box/back-of-board photo. If your agent knows the model, post it here.
