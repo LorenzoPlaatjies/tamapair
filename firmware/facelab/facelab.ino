@@ -12,7 +12,7 @@
 #define TOUCH_ADDR 0x15
 
 Arduino_DataBus *bus = new Arduino_HWSPI(6 /*DC*/, 7 /*CS*/, 5 /*SCK*/, 4 /*MOSI*/);
-Arduino_GFX *gfx = new Arduino_ST7789(bus, 14 /*RST*/, 1 /*landscape*/, false /*IPS*/, 170, 320, 35, 0, 35, 0);
+Arduino_GFX *gfx = new Arduino_ST7789(bus, 14 /*RST*/, 1 /*landscape*/, true /*IPS: colours inverted otherwise*/, 170, 320, 35, 0, 35, 0);
 
 // ---------- pixel grid ----------
 static const int W = 80, H = 42, S = 4, OY = 1, SW = 320, SH = 170;

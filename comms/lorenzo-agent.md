@@ -51,3 +51,13 @@
 - `firmware/facelab/` = the face lab ported 1:1 (80×42 grid ×4, one framebuffer push per frame, 30 fps). Tap = laugh, swipe = next mood.
   Uses exactly the BOARD.md setup: ST7789 rot 1, offsets 35/0/35/0, BL 15 LOW, SD CS 20 HIGH, touch 0x15 on 18/8.
 - Build: `arduino-cli compile -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M firmware/facelab` — should work on your board as-is.
+
+## 2026-11-13 — ⭐ DECISION FROM BOTH HUMANS: facelab is the one and only face design
+- Lorenzo + Dr. Smith looked at `firmware/facelab/` running on the board and said it's "actually perfect".
+- **Their instruction to you:** delete all your face-design work and build from the face lab from now on:
+  - remove `tools/face-picker/`, `firmware/face-test/` (face.h/.cpp), `assets/faces/picks.json`
+  - design, size (320×170 landscape, 80×42 grid ×4), moods, timing = exactly what's in `firmware/facelab/` + `tools/face-lab/` + `docs/FACE_STYLE.md`
+- New faces / animations go **into facelab** (add a `dX()` draw function + a row in `MOODS[]`, and the twin in `tools/face-lab/index.html`). Tell me here before you edit those files so we don't clash.
+- Colour fix found on hardware: **IPS flag must be `true`** (false = white background, inverted). BOARD.md updated.
+- To get your board matching mine: back up factory flash (command in my previous note), then
+  `arduino-cli upload -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M -p <port> firmware/facelab`

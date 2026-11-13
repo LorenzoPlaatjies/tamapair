@@ -32,7 +32,7 @@ Official code: https://github.com/waveshareteam/ESP32-C6-LCD-1.9 (`02_Example/Ar
 ## Working Arduino_GFX setup (straight from Waveshare's example)
 ```cpp
 Arduino_DataBus *bus = new Arduino_HWSPI(6 /*DC*/, 7 /*CS*/, 5 /*SCK*/, 4 /*MOSI*/);
-Arduino_GFX *gfx = new Arduino_ST7789(bus, 14 /*RST*/, 1 /*rotation: landscape*/, false /*IPS*/,
+Arduino_GFX *gfx = new Arduino_ST7789(bus, 14 /*RST*/, 1 /*rotation: landscape*/, true /*IPS — false = inverted colours*/,
                                       170, 320, 35, 0, 35, 0); // col offset 35 both sides
 gfx->begin();
 pinMode(15, OUTPUT); digitalWrite(15, LOW);   // LOW = backlight ON
@@ -43,7 +43,7 @@ pinMode(15, OUTPUT); digitalWrite(15, LOW);   // LOW = backlight ON
 2. **Backlight is active-LOW** on GPIO 15. `HIGH` = dark screen. For PWM brightness, invert the duty (Waveshare uses `0xff - level`).
 3. **Column offset 35.** The 170-wide panel sits inside a 240-wide controller. Without offsets 35/0/35/0 you get a garbage stripe and a shifted image.
 4. **Width/height order.** Pass the native `170, 320` to the constructor and let `rotation=1` turn it landscape. Passing 320×170 with rotation 0 breaks the offsets.
-5. **IPS flag `false`** (as in Waveshare's example). If colours look inverted, flip it.
+5. **IPS flag must be `true`** on our boards. Waveshare's example says `false`, but that gives inverted colours (white background instead of black). Confirmed on Lorenzo's board.
 6. **Touch is portrait-native.** CST816 reports x 0–169, y 0–319. In landscape (rotation 1): `sx = ty`, `sy = 169 - tx` (verify with a tap test; may need the mirror).
 7. **Touch needs a wake write.** Waveshare writes `0x00` to register `0x00` at 0x15 (up to 10 tries, 100 ms apart) before reading. Read 7 bytes from reg 0x00: count = b[2], x = (b[3]&0x0F)<<8 | b[4], y = (b[5]&0x0F)<<8 | b[6].
 8. **SD shares the SPI bus.** If you don't use SD, drive GPIO 20 HIGH so the card stays off the bus.

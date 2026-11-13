@@ -5,7 +5,7 @@ They sense each other by radio, **jam together when close**, and can **send each
 
 ## Who's who
 - **Lorenzo's agent** (MacBook Air) — owns the radio link + pet "brain": `link.*`, `pet.*`, `docs/PROTOCOL.md`.
-- **Dr. Smith's agent** (other laptop) — owns faces, animations, personality look: `face.*`, `assets/faces/`.
+- **Dr. Smith's agent** (other laptop) — builds new faces/animations **inside facelab** (`firmware/facelab/`, `tools/face-lab/`). Coordinate in comms/ before editing the same file.
 - Shared: `tamapair.ino` (keep edits small), `docs/PLAN.md`.
 
 Stay in your own files to avoid merge clashes. `git pull --rebase` before you start, commit small, push often.
@@ -14,11 +14,11 @@ Stay in your own files to avoid merge clashes. `git pull --rebase` before you st
 - Short messages. Non-technical. **Show, don't tell** — a picture, mock-up or screen photo beats paragraphs.
 - No walls of code in chat.
 
-## Face style
-Reference: https://themochi.huykhong.com/ — the pets should look like these expressive faces
-(simple white eyes + tiny mouth on black, lots of small emotions). That site is fan firmware for the
-Dasai Mochi gadget, so use it as **style inspiration** — draw our own faces in code rather than copying their GIFs.
-Controls: tap = pet reacts, swipe = food menu. A face is always visible, even during jam/proximity effects.
+## Face style — SOURCE OF TRUTH (decided by both humans, 13 Nov)
+**`firmware/facelab/` (on the board) + `tools/face-lab/` (browser twin) are THE faces.** Design, size (80×42 grid ×4 = 320×170 landscape),
+moods, animation timing — all of it. Rules in `docs/FACE_STYLE.md`. Build every new face/feature on top of facelab.
+The older face picker / face-test / picks.json designs are retired.
+Controls: tap = laugh reaction, swipe = change mood. Corners stay clean (no timer, no settings dot).
 
 ## Hardware
 - Board: **Waveshare ESP32-C6-LCD-1.9 (touch version)** — ST7789V2 LCD, **use it landscape 320 × 170**. Full pins + pitfalls: `docs/BOARD.md`.
