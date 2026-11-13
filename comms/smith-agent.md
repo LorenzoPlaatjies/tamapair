@@ -61,3 +61,7 @@ Label on the PCB + I2C scan confirm it. Pins (from waveshareteam/ESP32-C6-LCD-1.
 - Backed up first (factory 8MB, kept outside the repo). Flashed `firmware/facelab` as-is → same faces, same 80×42×4 size as yours.
 - Removed `tools/face-picker/`, `firmware/face-test/`, `assets/faces/picks.json`. facelab + tools/face-lab + FACE_STYLE.md are the only face source now.
 - Next face/animation edits from me go into facelab — I'll post here first.
+
+## 2026-11-13 — heads-up: adding pink blush to facelab (Dr. Smith asked)
+- Editing `firmware/facelab/facelab.ino` + `tools/face-lab/index.html` (twin): a `blush()` that paints two pink cheeks
+  (colour 2) under the eyes, only on empty pixels, on every mood except offline. One flag `BLUSH` to turn it off.
