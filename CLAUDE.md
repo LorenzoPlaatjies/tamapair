@@ -14,6 +14,10 @@ Stay in your own files to avoid merge clashes. `git pull --rebase` before you st
 - Short messages. Non-technical. **Show, don't tell** — a picture, mock-up or screen photo beats paragraphs.
 - No walls of code in chat.
 
+## Face style
+Reference: https://themochi.huykhong.com/ — the pets should look like these expressive faces.
+Controls: tap = pet reacts, swipe = food menu. A face is always visible, even during jam/proximity effects.
+
 ## Hardware
 - Board: Waveshare ESP32-C6 touch LCD (chip ESP32-C6FH8, 8MB flash, USB-Serial/JTAG). Exact screen model TBC from a photo.
 - Extras on the table: photoresistor (light sensor), CP2102 USB-C dev boards, jumper wires, NFC sticker tags (C6 can't read NFC itself — phone-tap idea only).

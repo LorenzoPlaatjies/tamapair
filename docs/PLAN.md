@@ -11,6 +11,13 @@ Two pets. Each lives on its own screen. When the boards get close, both screens 
 
 Tap your screen while close → **send food** flying to the other pet.
 
+## Faces & touch
+- **Always a face on screen** — even during proximity moments the face stays; effects pop up around it.
+- Face style: https://themochi.huykhong.com/ (expressive mochi faces — match this look).
+- **Tap** the pet → it reacts (giggle, blink, wiggle).
+- **Swipe** → food menu. Pick a food; if the friend is near, it flies over to them.
+- Room for **secrets**: hidden reactions/easter eggs (not just faces) — e.g. special combos when both pets do something at once.
+
 ## How proximity works
 Boards shout a tiny "hi, I'm here + my mood" over radio (ESP-NOW) ~5×/sec.
 Signal strength = distance. Strong signal → close. No new protocol hardware needed.
