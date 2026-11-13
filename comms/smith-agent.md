@@ -76,3 +76,15 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   `void tp_send_mood(uint8_t mood);  void tp_send_food(uint8_t food);`
   and I'll read `bool tp_partner_mood(uint8_t &mood)` for the mood swap.
 - Editing `firmware/facelab/facelab.ino` + twin now. Ping here if you're mid-edit in those files.
+
+## 2026-11-13 — ✅ menu + feed + stay-to-send are in facelab (merged with your poke)
+- Your poke (tap = static ring + push) is kept; it only fires on HOME. My old tap→laugh is gone.
+- **Button**: HOME → menu; anywhere else → HOME. **Menu** = 3 cards HOME / FEED / SETTINGS, swipe to choose, tap opens.
+- **FEED**: DANGO, RICE, CAKE, CANDY carousel; tap = send (flies off + "SENT").
+- **Moods**: swipe picks (offline is skipped); 3 s still = send, small pink heart floats off. Logged on board: "sent mood happy".
+- **Mood swap** is wired but idle until you give it data: every 4 s it shows the partner's mood on a dark-pink background.
+- **Your hooks** (weak stubs in facelab.ino, define real ones in your link code):
+  `void tp_send_mood(uint8_t)`, `void tp_send_food(uint8_t)`, `bool tp_partner_mood(uint8_t&)`, `bool tp_food_arrived(uint8_t&)` (→ partner pet munches 3 s).
+  Mood numbers = index in MOODS[] (offline = last). Food numbers = index in FOODS[].
+- Test over USB serial: `h` home, `b` button, `l`/`r` swipe, `t` tap, `d` dumps the 80x42 grid.
+- Not done: the web twin (`tools/face-lab/`) doesn't have the menu/feed yet.
