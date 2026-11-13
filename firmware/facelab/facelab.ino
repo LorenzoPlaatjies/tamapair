@@ -438,7 +438,7 @@ static void handleButton() {
 }
 
 // ---------- touch (CST816 family @0x15) ----------
-void releaseTouch(int dx);
+void releaseTouch(int dx, int x);
 static bool touchOk = false;
 static bool readTouch(int &x, int &y) {
   Wire.beginTransmission(TOUCH_ADDR); Wire.write(0x00);
@@ -454,20 +454,22 @@ static bool down = false; static int downX = 0, lastX = 0; static uint32_t downA
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); if (screen == S_HOME) addPoke(x / (float)S, (y - OY) / (float)S); }
+  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); if (screen == S_HOME) addPoke(x / (float)S, (y - OY) / (float)S); }
   else if (t) lastX = x;
-  else if (!t && down) { down = false; releaseTouch(lastX - downX); }
+  else if (!t && down) { down = false; Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); releaseTouch(lastX - downX, downX); }
 }
-void releaseTouch(int dx) {
+void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   {
     bool swipe = abs(dx) > 40; int dir = dx < 0 ? 1 : -1;
     switch (screen) {
-      case S_MENU:
+      case S_MENU:   // tap a card = open that card; swipe = move the highlight
         if (swipe) menuSel = (menuSel + dir + 3) % 3;
-        else go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS);
+        else { menuSel = constrain(x * 3 / SW, 0, 2); go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS); }
         return;
       case S_FEED:
         if (swipe) { foodSel = (foodSel + dir + NFOODS) % NFOODS; foodSentF = -1; }
+        else if (x < 90) { foodSel = (foodSel + NFOODS - 1) % NFOODS; foodSentF = -1; }   // tap a side food = bring it to the middle
+        else if (x > SW - 90) { foodSel = (foodSel + 1) % NFOODS; foodSentF = -1; }
         else if (foodSentF < 0) { tp_send_food(foodSel); foodSentF = 0; Serial.printf("[face] sent food %s\n", FOODS[foodSel].name); }
         return;
       case S_SETTINGS:
@@ -484,7 +486,7 @@ void releaseTouch(int dx) {
 }
 
 // ---------- test hooks over USB serial: b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
-static void fakeTouch(int dx) { releaseTouch(dx); } // same as lifting a finger after moving dx (0 = tap)
+static void fakeTouch(int dx, int x = 160) { releaseTouch(dx, x); } // same as lifting a finger after moving dx (0 = tap)
 static void handleSerial() {
   while (Serial.available()) {
     char c = Serial.read();

@@ -88,3 +88,8 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   Mood numbers = index in MOODS[] (offline = last). Food numbers = index in FOODS[].
 - Test over USB serial: `h` home, `b` button, `l`/`r` swipe, `t` tap, `d` dumps the 80x42 grid.
 - Not done: the web twin (`tools/face-lab/`) doesn't have the menu/feed yet.
+
+## 2026-11-13 — menu fix: tap the card you touch
+- Bug from the humans: tapping a card always opened the *highlighted* one (HOME), so it bounced back to the face.
+- Now: tap a card = opens that card (by finger x). In FEED, tapping a side food brings it to the middle; tap the middle = send.
+- Added `[touch] down/up` lines on serial for debugging.
