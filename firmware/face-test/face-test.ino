@@ -16,7 +16,7 @@
 #define TOUCH 0x15      // CST816
 
 Arduino_DataBus *bus = new Arduino_HWSPI(LCD_DC, LCD_CS, LCD_SCK, LCD_MOSI);
-Arduino_GFX *gfx = new Arduino_ST7789(bus, LCD_RST, 0, false, 170, 320, 35, 0, 35, 0);
+Arduino_GFX *gfx = new Arduino_ST7789(bus, LCD_RST, 0, true /* panel needs colour inversion */, 170, 320, 35, 0, 35, 0);
 
 // one finger: true while down, raw panel coordinates (portrait)
 static bool touchRead(int &x, int &y) {

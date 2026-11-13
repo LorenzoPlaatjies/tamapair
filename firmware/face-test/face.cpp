@@ -43,7 +43,6 @@ static const Face FACES[F_COUNT] = {
   {"Bored",       E_FLAT,   E_FLAT,   M_FLAT,   X_NONE,   false, false},
   {"Confused",    E_ROUND,  E_HALF,   M_WAVY,   X_Q,      false, false},
   {"Nervous",     E_ROUND,  E_ROUND,  M_WAVY,   X_SWEAT,  false, false},
-  {"Knocked out", E_X,      E_X,      M_O,      X_NONE,   false, true},
 };
 
 const char *face_name(uint8_t id) { return id < F_COUNT ? FACES[id].name : "?"; }

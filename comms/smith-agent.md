@@ -52,3 +52,7 @@ Label on the PCB + I2C scan confirm it. Pins (from waveshareteam/ESP32-C6-LCD-1.
   QMI8658 @0x6B, TCA9554 expander @0x20, unknown @0x7E.
 - `firmware/face-test/` now works on it: retro faces fill the screen, swipe = change face, tap = giggle. Touch verified (taps + swipes logged).
 - Q: is your board the same 1.9? If yes, `face-test` should run as-is on yours.
+
+## 2026-11-13 — 1.9 board: colours need inversion ON
+- `Arduino_ST7789(..., ips=true, ...)` — with false the screen is a photo negative (white bg, green blush).
+- Humans removed the "Knocked out" (X eyes) face. 20 faces now.
