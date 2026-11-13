@@ -4,6 +4,7 @@
 // Controls spec: docs/SCREENS.md -> Controls. Same face timing as docs/FACE_STYLE.md.
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include "qrcode.h"   // ESP-IDF QR maker (Wi-Fi setup screen)
 #include <Preferences.h>
 static Preferences prefs;
 
@@ -269,14 +270,22 @@ static void glyph(char ch, int x, int y, uint8_t c) {
     case 'N': g = "110101101101101"; break; case 'O': g = "111101101101111"; break;
     case 'R': g = "110101110101101"; break; case 'S': g = "111100111001111"; break;
     case 'T': g = "111010010010010"; break; case 'U': g = "101101101101111"; break;
-    case 'Y': g = "101101010010010"; break;
+    case 'Y': g = "101101010010010"; break; case 'P': g = "110101110100100"; break;
+    case 'J': g = "001001001101111"; break; case 'Q': g = "111101101111001"; break;
+    case 'V': g = "101101101101010"; break; case 'X': g = "101101010101101"; break;
+    case 'Z': g = "111001010100111"; break; case '-': g = "000000111000000"; break;
+    case '0': g = "111101101101111"; break; case '1': g = "010110010010111"; break;
+    case '2': g = "111001111100111"; break; case '3': g = "111001111001111"; break;
+    case '4': g = "101101111001001"; break; case '5': g = "111100111001111"; break;
+    case '6': g = "111100111101111"; break; case '7': g = "111001001001001"; break;
+    case '8': g = "111101111101111"; break; case '9': g = "111101111001111"; break;
   }
   if (g) for (int j = 0; j < 5; j++) for (int i = 0; i < 3; i++) if (g[j * 3 + i] == '1') px(x + i, y + j, c);
 }
-static int glyphW(char ch) { return ch == 'M' ? 5 : 3; }
+static int glyphW(char ch) { return ch == 'M' || ch == 'W' ? 5 : ch == ' ' ? 1 : 3; }
 static void label(const char *s, int x, int y, uint8_t c) {
   for (; *s; s++) {
-    if (*s == 'M') { static const char *m = "1000111011101011000110001"; for (int j = 0; j < 5; j++) for (int i = 0; i < 5; i++) if (m[j * 5 + i] == '1') px(x + i, y + j, c); }
+    if (*s == 'M' || *s == 'W') { const char *m = *s == 'M' ? "1000111011101011000110001" : "1000110001101011101110001"; for (int j = 0; j < 5; j++) for (int i = 0; i < 5; i++) if (m[j * 5 + i] == '1') px(x + i, y + j, c); }
     else glyph(*s, x, y, c);
     x += glyphW(*s) + 1;
   }
@@ -440,7 +449,32 @@ static void renderFace() {
   }
 }
 
+// ---------- Wi-Fi setup screen: scan the QR with a phone camera -> joins the pod's own Wi-Fi -> setup page pops up ----------
+static uint8_t qrMods[33 * 33]; static int qrSize = 0; static char qrFor[24] = "";
+static void qrGrab(esp_qrcode_handle_t q) { qrSize = esp_qrcode_get_size(q); if (qrSize > 33) { qrSize = 0; return; }
+  for (int y = 0; y < qrSize; y++) for (int x = 0; x < qrSize; x++) qrMods[y * qrSize + x] = esp_qrcode_get_module(q, x, y); }
+static void drawSetup(const char *ap) {
+  if (strcmp(qrFor, ap)) {                                    // build the QR once per network name
+    char txt[64]; snprintf(txt, sizeof txt, "WIFI:T:nopass;S:%s;;", ap);
+    esp_qrcode_config_t cfg = ESP_QRCODE_CONFIG_DEFAULT(); cfg.display_func = qrGrab; cfg.max_qrcode_version = 3;
+    esp_qrcode_generate(&cfg, txt); strncpy(qrFor, ap, sizeof qrFor - 1);
+  }
+  memset(buf, 0, sizeof buf);
+  int q0x = 3, q0y = (H - qrSize - 4) / 2;                    // white card with a 2-module quiet zone
+  rect(q0x, q0y, qrSize + 4, qrSize + 4, 1);
+  for (int y = 0; y < qrSize; y++) for (int x = 0; x < qrSize; x++) if (qrMods[y * qrSize + x]) px(q0x + 2 + x, q0y + 2 + y, 0);
+  int tx = q0x + qrSize + 8;
+  label("SCAN ME", tx, 6, 1);
+  label("WITH YOUR", tx, 14, 4); label("CAMERA", tx, 20, 4);
+  char up[24]; int n = 0; for (const char *c = ap; *c && n < 23; c++) up[n++] = toupper(*c); up[n] = 0;
+  char *dash = strchr(up, '-');
+  if (dash) { *dash = 0; label(up, tx, 29, 2); label(dash + 1, tx, 35, 2); } else label(up, tx, 29, 2);
+  if ((f / 15) % 2) rect(tx - 4, 7, 2, 3, 2);                 // blinking pointer next to SCAN ME
+}
+
 static void renderFrame() {
+  const char *setupAp = tp_setup_ap();
+  if (setupAp) drawSetup(setupAp); else
   switch (screen) {
     case S_MENU: drawMenu(); break;
     case S_FEED: drawFeed(); break;
@@ -449,7 +483,7 @@ static void renderFrame() {
   }
   if (screenGlitch > 0) { screenGlitch--; for (int i = 0; i < W * H / 8; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; }
   // grid -> 320x170 RGB565 framebuffer, one push per frame
-  uint16_t bg = (screen == S_HOME && showingPartner) ? PARTNER_BG : 0;
+  uint16_t bg = (!setupAp && screen == S_HOME && showingPartner) ? PARTNER_BG : 0;
   if (bg) for (int i = 0; i < SW * SH; i++) fb[i] = bg; else memset(fb, 0, sizeof fb);
   for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
     uint8_t v = buf[y * W + x]; if (!v) continue;

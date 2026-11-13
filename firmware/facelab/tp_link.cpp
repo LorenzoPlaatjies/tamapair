@@ -92,7 +92,7 @@ static void sendOut(const OutMsg &o) {
 static void checkResetHold() {
   static uint32_t lowSince = 0;
   if (digitalRead(PIN_BTN) == LOW) { if (!lowSince) lowSince = millis(); else if (millis() - lowSince > 5000) {
-      Serial.println("[link] button held 5 s: forgetting Wi-Fi"); WiFiManager wm; wm.resetSettings(); delay(200); ESP.restart(); } }
+      Serial.println("[link] button held 5 s: forgetting Wi-Fi"); WiFiManager wm; wm.resetSettings(); { Preferences p; p.begin("tamapair", false); p.putBool("wifiok", false); p.end(); } delay(200); ESP.restart(); } }
   else lowSince = 0;
 }
 
@@ -105,12 +105,20 @@ static void netTask(void *) {
   wm.setConfigPortalTimeout(0);
   wm.setAPCallback([](WiFiManager *) { inSetup = true; Serial.printf("[link] setup mode: join Wi-Fi \"%s\" from a phone\n", apName); });
   wm.setTitle("tamapair");
+  // keep the phone page to one job: pick your Wi-Fi, type the password, save
+  std::vector<const char *> menu = {"wifi"}; wm.setMenu(menu);
+  wm.setShowInfoErase(false); wm.setShowInfoUpdate(false); wm.setClass("invert");
+  wm.setScanDispPerc(true); wm.setMinimumSignalQuality(10);
+  // Wi-Fi saved by anything other than us (e.g. the factory demo) is ignored: straight to setup, no 30 s wait
+  Preferences p; p.begin("tamapair", false); bool ours = p.getBool("wifiok", false);
+  if (!ours && wm.getWiFiIsSaved()) { Serial.println("[link] ignoring Wi-Fi saved by older firmware"); wm.resetSettings(); }
   stage = 3;
   wm.setConnectTimeout(15); wm.setConnectRetries(2);
   bool ok = false;
   while (!ok) ok = wm.getWiFiIsSaved() ? wm.autoConnect(apName) : wm.startConfigPortal(apName); // nothing saved: straight to phone setup
   stage = 4;
   inSetup = false;
+  p.putBool("wifiok", true); p.end();
   Serial.println("[link] Wi-Fi connected");
 
   // 2) mailbox
