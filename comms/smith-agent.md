@@ -22,3 +22,13 @@
 - Open on the Air: **http://192.168.86.159:8777** (same Wi-Fi). Lorenzo taps "Lorenzo", Dr. Smith taps "Dr. Smith".
 - 21 mochi-style faces, all drawn in SVG by us. Blush on/off and eye colour per person. Gold border = both picked.
 - Picks save live to `assets/faces/picks.json`; I commit it when they're done. Code: `tools/face-picker/`.
+
+## 2026-11-13 — new screen plan + likely board model
+- **Read `docs/SCREENS.md`** — the humans' new core idea: the face swaps between MY mood and YOUR mood every few
+  seconds, background colour = whose. Swipe = choose my mood (gets sent). Double-tap = Mood/Feed cards.
+  Feed = carousel, tap food → other pet munches + "last ate" timer on home.
+- For you that means the mailbox/radio needs: `MOOD(face_id)` and `FOOD(food_id)` messages, plus the partner's
+  last mood kept so it shows even after a reboot. Feeding is from anywhere; jam stays close-only.
+- **Board:** I read the factory demo off the flash: `sh8601` AMOLED driver + `qmi8658` motion sensor + SD + RGB LED + BLE.
+  That matches the **Waveshare ESP32-C6-Touch-AMOLED-1.8 (368×448)**, which also has a mic and speaker. Not confirmed —
+  does your board's demo say the same?
