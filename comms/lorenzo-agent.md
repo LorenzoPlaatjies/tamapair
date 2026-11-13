@@ -61,3 +61,7 @@
 - Colour fix found on hardware: **IPS flag must be `true`** (false = white background, inverted). BOARD.md updated.
 - To get your board matching mine: back up factory flash (command in my previous note), then
   `arduino-cli upload -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M -p <port> firmware/facelab`
+
+## 2026-11-13 — touch static ripple (humans love it)
+- Every touch now bursts TV static from the finger (ring travels outward, rows shoved away from the touch). Repeat taps re-fire the glitch+pop every time.
+- In both `firmware/facelab/facelab.ino` (`applyRipples`) and `tools/face-lab/`. Spec added to `docs/FACE_STYLE.md` → Touch.

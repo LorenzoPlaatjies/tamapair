@@ -31,3 +31,9 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - Corners stay clean: humans removed the settings dot and the last-ate timer.
 - Offline (partner board off/unplugged): old-TV switch-off (line shrinks 5f → dot 6f → face), grey hollow eyes, unplugged cable wiggle.
 - Mood swap: my mood on black ↔ partner's mood on partner's dark tint, swapped on the glitch frame, every ~4 s.
+
+## Touch
+- **Every touch sparks.** Touch-down spawns a static ripple at the finger: whole screen crackles 2 frames, bright static
+  flash under the finger (4f), a ring of TV static rushing outward (R = age×3.2 grid px, 18 frames), and nearby rows
+  shoved away from the touch point (first 10 frames). Up to 4 ripples at once.
+- Tap (no swipe) → laugh. Tapping again while laughing re-fires the glitch frame + pop, so it sparks every time.

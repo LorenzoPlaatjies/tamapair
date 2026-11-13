@@ -150,6 +150,41 @@ static int blinkAt = 60, blinkF = -1, glanceAt = 150, glanceF = -1, glanceDir = 
 static float lookX = 0;
 static int reactUntil = -1, beforeReact = 0;
 
+// ---------- touch static ripple: TV-static droplet bursting out from the finger ----------
+struct Ripple { float x, y; int a; bool on; };
+static Ripple ripples[4];
+static const int RIPPLE_LIFE = 18;
+static void addRipple(float x, float y) {
+  int slot = 0; for (int i = 0; i < 4; i++) { if (!ripples[i].on) { slot = i; break; } if (ripples[i].a > ripples[slot].a) slot = i; }
+  ripples[slot] = {x, y, 0, true};
+}
+static inline uint8_t staticPx() { return random(100) < 85 ? 1 : 3; }
+static void applyRipples() {
+  uint8_t row[W];
+  for (auto &r : ripples) {
+    if (!r.on) continue;
+    int a = r.a; float R = a * 3.2f, band = 3 + a * .25f, dens = .9f * (1 - (float)a / RIPPLE_LIFE);
+    if (a < 2) for (int i = 0; i < W * H / 25; i++) buf[random(W * H)] = staticPx();         // whole screen crackles
+    if (a < 10) {                                                                              // splash: shove rows outward
+      float reach = R + 8; int cx = lroundf(r.x);
+      for (int y = max(0, (int)floorf(r.y - reach)); y < min(H, (int)ceilf(r.y + reach)); y++) {
+        float k = 1 - fabsf(y - r.y) / reach; int s = lroundf((9 - a * .8f) * k + random(3) - 1); if (s <= 0) continue;
+        memcpy(row, buf + y * W, W);
+        for (int x = 0; x < W; x++) { int from = x > cx ? x - s : x < cx ? x + s : x; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
+      }
+    }
+    float lim = R + band + 1;                                                                  // the static ring
+    for (int y = max(0, (int)floorf(r.y - lim)); y < min(H, (int)ceilf(r.y + lim)); y++)
+      for (int x = max(0, (int)floorf(r.x - lim)); x < min(W, (int)ceilf(r.x + lim)); x++) {
+        float d = hypotf(x + .5f - r.x, y + .5f - r.y);
+        if (fabsf(d - R) < band && random(1000) < dens * 1000) buf[y * W + x] = staticPx();
+      }
+    if (a < 4) { float cr = 3 + a * 2.5f;                                                      // flash under the finger
+      for (int y = floorf(r.y - cr); y <= r.y + cr; y++) for (int x = floorf(r.x - cr); x <= r.x + cr; x++)
+        if (hypotf(x - r.x, y - r.y) <= cr && random(100) < 65) px(x, y, random(100) < 80 ? 1 : 3); }
+  }
+}
+
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
 static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; }
 
@@ -172,6 +207,7 @@ static void tick() {
     }
   }
   if (reactUntil > 0 && f >= reactUntil) { reactUntil = -1; setMood(beforeReact); }
+  for (auto &r : ripples) if (r.on && ++r.a >= RIPPLE_LIFE) r.on = false;
 }
 
 static void xf(float &sx, float &sy, float &dx, float &dy) {
@@ -210,6 +246,7 @@ static void renderFrame() {
     }
     for (int i = 0; i < W * H / 20; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3;
   }
+  applyRipples();
   // grid -> 320x170 RGB565 framebuffer, one push per frame
   memset(fb, 0, sizeof fb);
   for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
@@ -236,12 +273,16 @@ static bool down = false; static int downX = 0, lastX = 0; static uint32_t downA
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); }
+  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); addRipple(x / (float)S, (y - OY) / (float)S); }
   else if (t) lastX = x;
   else if (!t && down) {
     down = false; int dx = lastX - downX;
     if (abs(dx) > 40) { myMood = (myMood + (dx < 0 ? 1 : -1) + NMOODS) % NMOODS; setMood(myMood); Serial.printf("[face] swipe -> %s\n", MOODS[myMood].name); }
-    else { beforeReact = myMood; setMood(LAUGH); reactUntil = f + 60; Serial.println("[face] tap -> laugh"); }
+    else { // every tap sparks: if already laughing, re-fire the glitch burst + pop instead of doing nothing
+      beforeReact = myMood;
+      if (mood == LAUGH) { prevMood = LAUGH; phase = GLITCH; pf = 0; } else setMood(LAUGH);
+      reactUntil = f + 60; Serial.println("[face] tap -> laugh");
+    }
   }
 }
 
