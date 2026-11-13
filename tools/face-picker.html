@@ -1,0 +1,274 @@
+<meta charset="utf-8">
+<title>Mochi Face Picker</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Fredoka:wght@500;600&family=Nunito:wght@400;600;700&display=swap">
+<style>
+/* layout: device preview + options on the left, face gallery on the right, both pets' picks below */
+:root{
+  --bg:#F3F1F7; --card:#FFFFFF; --ink:#1E1B2B; --muted:#6B6680; --line:#E2DEEC;
+  --accent:#E8578E; --accent-soft:#FCE3EC; --lor:#5A6BF2; --smi:#E8578E;
+  --display:"Fredoka", "Nunito", ui-rounded, system-ui, sans-serif;
+  --body:"Nunito", ui-rounded, system-ui, -apple-system, sans-serif;
+}
+@media (prefers-color-scheme: dark){:root:not([data-theme="light"]){
+  --bg:#15131D; --card:#1F1C2A; --ink:#F1EEF8; --muted:#A39DB8; --line:#2F2B3E;
+  --accent:#FF7FAE; --accent-soft:#3A2030; --lor:#8C99FF; --smi:#FF7FAE; color-scheme:dark}}
+:root[data-theme="dark"]{
+  --bg:#15131D; --card:#1F1C2A; --ink:#F1EEF8; --muted:#A39DB8; --line:#2F2B3E;
+  --accent:#FF7FAE; --accent-soft:#3A2030; --lor:#8C99FF; --smi:#FF7FAE; color-scheme:dark}
+*{box-sizing:border-box}
+body{background:var(--bg);color:var(--ink);font-family:var(--body);font-size:15px;line-height:1.5;
+  padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 48px}
+.wrap{max-width:1100px;margin:0 auto;display:flex;flex-direction:column;gap:20px}
+h1{font-family:var(--display);font-weight:600;font-size:clamp(26px,4vw,36px);margin:0;letter-spacing:-.01em;text-wrap:balance}
+h2{font-family:var(--display);font-weight:500;font-size:19px;margin:0}
+.sub{color:var(--muted);margin:4px 0 0}
+.who{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+.who span{color:var(--muted);font-weight:600;margin-right:4px}
+.seg{border:2px solid var(--line);background:var(--card);color:var(--ink);font:600 15px var(--body);padding:8px 16px;border-radius:999px;cursor:pointer;display:flex;align-items:center;gap:8px}
+.seg .dot{width:10px;height:10px;border-radius:50%}
+.seg[aria-pressed="true"]{border-color:var(--ink)}
+.main{display:grid;grid-template-columns:300px minmax(0,1fr);gap:24px;align-items:start}
+@media (max-width:760px){.main{grid-template-columns:minmax(0,1fr)}}
+.side{display:flex;flex-direction:column;gap:16px;position:sticky;top:max(16px,env(safe-area-inset-top,0px))}
+@media (max-width:760px){.side{position:static}}
+.device{align-self:center;background:#2A2733;border-radius:34px;padding:14px;width:min(100%,264px)}
+.device canvas{display:block;width:100%;aspect-ratio:240/280;border-radius:22px;cursor:pointer}
+.devcap{text-align:center;color:var(--muted);font-size:13px}
+.devname{font-family:var(--display);font-weight:500;font-size:18px;text-align:center;color:var(--ink)}
+.opts{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:12px}
+.opt{display:flex;flex-direction:column;gap:6px}
+.opt label{font-size:12px;font-weight:700;letter-spacing:.06em;text-transform:uppercase;color:var(--muted)}
+.chips{display:flex;gap:6px;flex-wrap:wrap}
+.chip{border:2px solid var(--line);background:transparent;color:var(--ink);font:600 13px var(--body);padding:5px 12px;border-radius:999px;cursor:pointer}
+.chip[aria-pressed="true"]{border-color:var(--accent);background:var(--accent-soft)}
+.sw{width:30px;height:30px;border-radius:50%;border:3px solid var(--line);cursor:pointer;padding:0}
+.sw[aria-pressed="true"]{border-color:var(--accent)}
+.gallery{display:grid;grid-template-columns:repeat(auto-fill,minmax(132px,1fr));gap:12px}
+.face{background:var(--card);border:2px solid var(--line);border-radius:16px;padding:8px;display:flex;flex-direction:column;gap:6px;cursor:pointer;position:relative}
+.face.on{border-color:var(--accent)}
+.face.cur{outline:3px solid var(--ink);outline-offset:2px}
+.face canvas{width:100%;aspect-ratio:240/280;border-radius:10px;display:block}
+.face .row{display:flex;align-items:center;justify-content:space-between;gap:4px}
+.face .nm{font-weight:700;font-size:13px}
+.heart{border:0;background:transparent;font-size:20px;line-height:1;cursor:pointer;color:var(--muted);padding:2px 4px;border-radius:8px}
+.face.on .heart{color:var(--accent)}
+.status{font-size:13px;color:var(--muted)}
+.picks{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+@media (max-width:640px){.picks{grid-template-columns:minmax(0,1fr)}}
+.pc{background:var(--card);border:1px solid var(--line);border-radius:16px;padding:14px;display:flex;flex-direction:column;gap:10px;min-width:0}
+.pc h2{display:flex;align-items:center;gap:8px}
+.pc .dot{width:12px;height:12px;border-radius:50%}
+.minis{display:flex;flex-wrap:wrap;gap:6px}
+.minis canvas{width:52px;aspect-ratio:240/280;border-radius:8px}
+.empty{color:var(--muted);font-size:14px}
+.bar{display:flex;gap:10px;align-items:center;flex-wrap:wrap}
+.btn{border:0;background:var(--ink);color:var(--bg);font:700 14px var(--body);padding:9px 16px;border-radius:999px;cursor:pointer}
+button:focus-visible{outline:3px solid var(--accent);outline-offset:2px}
+</style>
+
+<div class="wrap">
+  <header>
+    <h1>Mochi Face Picker</h1>
+    <p class="sub">Tap a face to try it on the screen. Heart the ones your pet should have. Tap the big screen to flip through your hearts.</p>
+  </header>
+
+  <div class="who" role="group" aria-label="Who is picking">
+    <span>Picking for</span>
+    <button class="seg" id="who-lorenzo" data-who="lorenzo"><i class="dot" style="background:var(--lor)"></i>Lorenzo's pet</button>
+    <button class="seg" id="who-smith" data-who="smith"><i class="dot" style="background:var(--smi)"></i>Dr. Smith's pet</button>
+  </div>
+
+  <div class="main">
+    <aside class="side">
+      <div class="device"><canvas id="big" width="480" height="560" aria-label="Pet screen preview"></canvas></div>
+      <div class="devname" id="bigname">Hi</div>
+      <div class="devcap" id="bigcap">Tap the screen</div>
+      <div class="opts">
+        <div class="opt"><label>Blush</label><div class="chips" id="blush"></div></div>
+        <div class="opt"><label>Face color</label><div class="chips" id="color"></div></div>
+        <div class="opt"><label>Screen</label><div class="chips" id="bgc"></div></div>
+      </div>
+    </aside>
+    <section class="gallery" id="gallery" aria-label="Faces"></section>
+  </div>
+
+  <section style="display:flex;flex-direction:column;gap:12px">
+    <h2 style="font-size:22px">Our picks</h2>
+    <div class="picks" id="picks"></div>
+    <div class="bar"><button class="btn" id="copy">Copy picks for the agents</button><span class="status" id="status">Connecting…</span></div>
+  </section>
+</div>
+
+<script>
+const FACES=[
+ {id:"hi",name:"Hi",eyes:"round",mouth:"smile"},
+ {id:"giggle",name:"Giggle",eyes:"happy",mouth:"big"},
+ {id:"love",name:"Love",eyes:"heart",mouth:"smile",extra:"hearts"},
+ {id:"starry",name:"Starstruck",eyes:"star",mouth:"open",extra:"sparkles"},
+ {id:"sleepy",name:"Sleepy",eyes:"closed",mouth:"flat",extra:"zzz"},
+ {id:"dizzy",name:"Dizzy",eyes:"spiral",mouth:"wavy"},
+ {id:"surprised",name:"Surprised",eyes:"wide",mouth:"open"},
+ {id:"wink",name:"Wink",eyes:"wink",mouth:"tongue"},
+ {id:"hungry",name:"Hungry",eyes:"sad",mouth:"open",extra:"sweat"},
+ {id:"yum",name:"Yum",eyes:"happy",mouth:"cat",extra:"food"},
+ {id:"nom",name:"Nom nom",eyes:"closed",mouth:"nom"},
+ {id:"sad",name:"Sad",eyes:"sad",mouth:"frown",extra:"tear"},
+ {id:"grumpy",name:"Grumpy",eyes:"angry",mouth:"flat"},
+ {id:"smug",name:"Smug",eyes:"smug",mouth:"smirk"},
+ {id:"jam",name:"Jamming",eyes:"happy",mouth:"big",extra:"notes"},
+ {id:"peek",name:"Friend nearby?",eyes:"side",mouth:"smile"},
+ {id:"kitty",name:"Kitty",eyes:"dot",mouth:"cat"},
+ {id:"oops",name:"Oops",eyes:"x",mouth:"tongue"}
+];
+const BLUSH=[["none","None"],["pink","Pink"],["lines","Lines"],["big","Extra"]];
+const COLORS=[["#FFFFFF","White"],["#FFC4DD","Pink"],["#B9F3DC","Mint"],["#FFE89A","Butter"],["#BFE3FF","Sky"]];
+const BGS=[["#000000","Black"],["#151436","Night"],["#2B1630","Plum"]];
+const DEF=()=>({faces:[],blush:"pink",color:"#FFFFFF",bg:"#000000"});
+const NAMES={lorenzo:"Lorenzo's pet",smith:"Dr. Smith's pet"};
+let picks={lorenzo:DEF(),smith:DEF()};
+let who="lorenzo";try{who=localStorage.getItem("mochi-who")||"lorenzo"}catch(e){}
+let cur="hi", cycle=0;
+const reduce=matchMedia("(prefers-reduced-motion: reduce)").matches;
+
+/* ---------- drawing ---------- */
+function rr(c,x,y,w,h,r){r=Math.min(r,w/2,Math.abs(h)/2);c.beginPath();c.moveTo(x+r,y);c.arcTo(x+w,y,x+w,y+h,r);c.arcTo(x+w,y+h,x,y+h,r);c.arcTo(x,y+h,x,y,r);c.arcTo(x,y,x+w,y,r);c.closePath()}
+function heart(c,x,y,s){c.beginPath();c.moveTo(x,y+s*.9);c.bezierCurveTo(x-s*1.4,y,x-s*.9,y-s*1.1,x,y-s*.35);c.bezierCurveTo(x+s*.9,y-s*1.1,x+s*1.4,y,x,y+s*.9);c.fill()}
+function star(c,x,y,s){c.beginPath();for(let i=0;i<8;i++){const a=i*Math.PI/4-Math.PI/2,r=i%2?s*.32:s;c.lineTo(x+Math.cos(a)*r,y+Math.sin(a)*r)}c.closePath();c.fill()}
+function drop(c,x,y,s){c.beginPath();c.moveTo(x,y-s);c.quadraticCurveTo(x+s*.9,y+s*.2,x,y+s*.8);c.quadraticCurveTo(x-s*.9,y+s*.2,x,y-s);c.fill()}
+const BLINKY=new Set(["round","side","wide","dot","smug","sad","angry"]);
+function eye(c,kind,x,y,side,col,bg,b){
+  c.fillStyle=col;c.strokeStyle=col;c.lineCap="round";c.lineJoin="round";
+  const k=kind==="wink"?(side<0?"round":"happy"):kind;
+  if(BLINKY.has(k)&&b<.25){c.lineWidth=8;c.beginPath();c.moveTo(x-16,y);c.lineTo(x+16,y);c.stroke();return}
+  switch(k){
+   case "round":rr(c,x-17,y-24*b,34,48*b,16);c.fill();break;
+   case "side":rr(c,x-25,y-24*b,34,48*b,16);c.fill();break;
+   case "dot":c.beginPath();c.ellipse(x,y,10,10*b,0,0,7);c.fill();break;
+   case "wide":c.lineWidth=7;c.beginPath();c.ellipse(x,y,24,24*b,0,0,7);c.stroke();c.beginPath();c.ellipse(x,y,9,9*b,0,0,7);c.fill();break;
+   case "happy":c.lineWidth=9;c.beginPath();c.arc(x,y+12,20,Math.PI*1.15,Math.PI*1.85);c.stroke();break;
+   case "closed":c.lineWidth=9;c.beginPath();c.arc(x,y-8,20,Math.PI*.15,Math.PI*.85);c.stroke();break;
+   case "heart":heart(c,x,y,22);break;
+   case "star":star(c,x,y,26);break;
+   case "x":c.lineWidth=8;c.beginPath();c.moveTo(x-14,y-14);c.lineTo(x+14,y+14);c.moveTo(x+14,y-14);c.lineTo(x-14,y+14);c.stroke();break;
+   case "spiral":{c.lineWidth=5;c.beginPath();for(let a=0;a<Math.PI*5;a+=.2){const r=2+a*1.5,aa=a*side+ (window.__t||0)*3*side;c.lineTo(x+Math.cos(aa)*r,y+Math.sin(aa)*r)}c.stroke();break}
+   case "sad":case "angry":case "smug":{
+     rr(c,x-17,y-24*b,34,48*b,16);c.fill();c.fillStyle=bg;
+     const top=y-24*b-2,outer=x+side*19,inner=x-side*19;c.beginPath();
+     if(k==="smug"){c.rect(x-20,top,40,24*b)}
+     else if(k==="sad"){c.moveTo(outer,top);c.lineTo(inner,top);c.lineTo(outer,top+26)}
+     else{c.moveTo(inner,top);c.lineTo(outer,top);c.lineTo(inner,top+26)}
+     c.closePath();c.fill();break}
+  }
+}
+function mouth(c,kind,col,t){
+  const x=120,y=172;c.fillStyle=col;c.strokeStyle=col;c.lineWidth=6;c.lineCap="round";c.lineJoin="round";c.beginPath();
+  switch(kind){
+   case "smile":c.arc(x,y-8,12,Math.PI*.15,Math.PI*.85);c.stroke();break;
+   case "big":c.moveTo(x-20,y-6);c.arc(x,y-6,20,0,Math.PI);c.closePath();c.fill();c.fillStyle="#FF7FA8";c.beginPath();c.ellipse(x,y+8,9,5,0,0,7);c.fill();break;
+   case "open":c.ellipse(x,y,8,10,0,0,7);c.fill();break;
+   case "cat":c.arc(x-8,y-6,8,0,Math.PI);c.moveTo(x+16,y-6);c.arc(x+8,y-6,8,0,Math.PI);c.stroke();break;
+   case "flat":c.moveTo(x-11,y);c.lineTo(x+11,y);c.stroke();break;
+   case "frown":c.arc(x,y+10,12,Math.PI*1.15,Math.PI*1.85);c.stroke();break;
+   case "wavy":c.moveTo(x-18,y);for(let i=1;i<=6;i++)c.lineTo(x-18+i*6,y+(i%2?-5:5));c.stroke();break;
+   case "tongue":c.arc(x,y-8,12,Math.PI*.15,Math.PI*.85);c.stroke();c.fillStyle="#FF7FA8";rr(c,x-6,y+1,12,12,6);c.fill();break;
+   case "smirk":c.arc(x+6,y-10,12,Math.PI*.2,Math.PI*.7);c.stroke();break;
+   case "nom":{const h=6+Math.abs(Math.sin(t*8))*10;rr(c,x-13,y-h/2,26,h,h/2);c.fill();break}
+  }
+}
+function blush(c,style){
+  if(style==="none")return;c.fillStyle="rgba(255,110,160,.55)";c.strokeStyle="rgba(255,110,160,.8)";c.lineWidth=3;c.lineCap="round";
+  for(const s of[-1,1]){const x=120+s*70,y=160;
+    if(style==="lines"){c.beginPath();for(let i=-1;i<=1;i++){c.moveTo(x+i*8-4,y+5);c.lineTo(x+i*8+4,y-5)}c.stroke()}
+    else{c.beginPath();c.ellipse(x,y,style==="big"?22:15,style==="big"?12:8,0,0,7);c.fill()}}
+}
+function extra(c,kind,col,t){
+  if(!kind)return;const f=reduce?0:t;c.fillStyle=col;
+  if(kind==="zzz"){c.font="600 22px Fredoka, sans-serif";c.globalAlpha=.85;c.fillText("z",178,78-(f*6%10));c.font="600 30px Fredoka, sans-serif";c.fillText("z",194,56-(f*6%10));c.globalAlpha=1}
+  if(kind==="notes"){c.font="600 30px sans-serif";c.fillText("♪",28,96+Math.sin(f*5)*6);c.fillText("♫",188,84+Math.cos(f*5)*6)}
+  if(kind==="sweat"){c.fillStyle="#8FD3FF";drop(c,178,74,11)}
+  if(kind==="tear"){c.fillStyle="#8FD3FF";drop(c,70,150+(f*20%14),8)}
+  if(kind==="food"){c.fillStyle="#FFC4DD";c.beginPath();c.ellipse(170,192,16,13,0,0,7);c.fill();c.fillStyle="#fff";c.beginPath();c.ellipse(165,187,4,3,0,0,7);c.fill()}
+  if(kind==="sparkles"){star(c,36,70,10+Math.sin(f*6)*3);star(c,204,64,8+Math.cos(f*6)*3);star(c,206,200,7)}
+  if(kind==="hearts"){c.fillStyle="#FF7FA8";heart(c,200,70-(f*12%16),10);heart(c,40,86-(f*9%16),8)}
+}
+function drawFace(cv,face,p,t,phase){
+  const c=cv.getContext("2d"),sc=cv.width/240;c.setTransform(sc,0,0,sc,0,0);
+  c.fillStyle=p.bg;c.fillRect(0,0,240,280);
+  window.__t=reduce?0:t;
+  const bob=reduce?0:Math.sin(t*2+phase)*3;c.save();c.translate(0,bob);
+  const bt=(t+phase)%4;const b=reduce?1:(bt<.14?Math.max(.05,Math.abs(bt-.07)/.07):1);
+  blush(c,p.blush);
+  eye(c,face.eyes,72,124,-1,p.color,p.bg,b);eye(c,face.eyes,168,124,1,p.color,p.bg,b);
+  mouth(c,face.mouth,p.color,t);c.restore();extra(c,face.extra,p.color,t);
+}
+
+/* ---------- UI ---------- */
+const $=s=>document.querySelector(s);
+const gal=$("#gallery"),cards={};
+FACES.forEach((f,i)=>{
+  const d=document.createElement("div");d.className="face";d.tabIndex=0;d.setAttribute("role","button");d.setAttribute("aria-label","Preview "+f.name);
+  d.innerHTML=`<canvas width="240" height="280"></canvas><div class="row"><span class="nm"></span><button class="heart" aria-label="Heart ${f.name}">♡</button></div>`;
+  d.querySelector(".nm").textContent=f.name;
+  d.addEventListener("click",e=>{if(e.target.closest(".heart"))return;cur=f.id;render()});
+  d.addEventListener("keydown",e=>{if(e.key==="Enter"||e.key===" "){e.preventDefault();cur=f.id;render()}});
+  d.querySelector(".heart").addEventListener("click",()=>toggleHeart(f.id));
+  gal.appendChild(d);cards[f.id]={el:d,cv:d.querySelector("canvas"),phase:i*.7};
+});
+function chips(host,list,key,swatch){
+  host.innerHTML="";list.forEach(([v,label])=>{const b=document.createElement("button");
+    if(swatch){b.className="sw";b.style.background=v;b.title=label;b.setAttribute("aria-label",label)}else{b.className="chip";b.textContent=label}
+    b.dataset.v=v;b.addEventListener("click",()=>{picks[who][key]=v;changed()});host.appendChild(b)})
+}
+chips($("#blush"),BLUSH,"blush");chips($("#color"),COLORS,"color",true);chips($("#bgc"),BGS,"bg",true);
+document.querySelectorAll(".seg").forEach(b=>b.addEventListener("click",()=>{who=b.dataset.who;try{localStorage.setItem("mochi-who",who)}catch(e){}cycle=0;render()}));
+$("#big").addEventListener("click",()=>{const h=picks[who].faces;const list=h.length?h:FACES.map(f=>f.id);cycle=(list.indexOf(cur)+1)%list.length;cur=list[cycle];render()});
+function toggleHeart(id){const a=picks[who].faces;const i=a.indexOf(id);i<0?a.push(id):a.splice(i,1);changed()}
+
+function render(){
+  const p=picks[who];
+  document.querySelectorAll(".seg").forEach(b=>b.setAttribute("aria-pressed",b.dataset.who===who));
+  for(const [k,sel] of [["blush","#blush"],["color","#color"],["bg","#bgc"]])
+    document.querySelectorAll(sel+" button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===p[k]));
+  FACES.forEach(f=>{const on=p.faces.includes(f.id),c=cards[f.id];c.el.classList.toggle("on",on);c.el.classList.toggle("cur",f.id===cur);c.el.querySelector(".heart").textContent=on?"♥":"♡";c.el.querySelector(".heart").setAttribute("aria-pressed",on)});
+  const f=FACES.find(x=>x.id===cur);$("#bigname").textContent=f.name;
+  $("#bigcap").textContent=p.faces.length?`${p.faces.length} hearted · tap the screen to flip through`:"Tap the screen to flip through faces";
+  const host=$("#picks");host.innerHTML="";
+  for(const w of ["lorenzo","smith"]){const q=picks[w];const card=document.createElement("div");card.className="pc";
+    card.innerHTML=`<h2><i class="dot" style="background:var(--${w==="lorenzo"?"lor":"smi"})"></i></h2><div class="minis"></div><div class="empty"></div>`;
+    card.querySelector("h2").append(NAMES[w]);
+    const m=card.querySelector(".minis");
+    q.faces.forEach(id=>{const ff=FACES.find(x=>x.id===id);if(!ff)return;const cv=document.createElement("canvas");cv.width=120;cv.height=140;cv.title=ff.name;drawFace(cv,ff,q,0,0);m.appendChild(cv)});
+    card.querySelector(".empty").textContent=q.faces.length?`${q.faces.length} faces · blush: ${q.blush} · color: ${(COLORS.find(c=>c[0]===q.color)||[0,"custom"])[1]} · screen: ${(BGS.find(c=>c[0]===q.bg)||[0,"custom"])[1]}`:"No hearts yet.";
+    host.appendChild(card)}
+  if(reduce&&window.__ready)loop(0);
+}
+function loop(ts){const t=ts/1000,p=picks[who];
+  FACES.forEach(f=>drawFace(cards[f.id].cv,f,p,t,cards[f.id].phase));
+  drawFace($("#big"),FACES.find(x=>x.id===cur),p,t,0);
+  if(!reduce)requestAnimationFrame(loop)}
+
+/* ---------- saving ---------- */
+let db=null,mode="local",timer=null;
+const status=t=>$("#status").textContent=t;
+function saveLocal(){try{localStorage.setItem("mochi-picks",JSON.stringify(picks))}catch(e){}}
+try{const s=JSON.parse(localStorage.getItem("mochi-picks")||"null");if(s){picks.lorenzo={...DEF(),...s.lorenzo};picks.smith={...DEF(),...s.smith}}}catch(e){}
+function changed(){render();saveLocal();if(mode!=="shared")return;clearTimeout(timer);const w=who,data={...picks[w],faces:[...picks[w].faces],updatedAt:Date.now()};
+  timer=setTimeout(async()=>{try{await db.doc("picks/"+w).set(data);status("Saved · both of you see the same picks")}catch(e){mode="local";status("Saved on this device only. Use Copy picks to share.")}},500)}
+(async()=>{
+  const timeout=setTimeout(()=>{if(mode!=="shared")status("Saved on this device only. Use Copy picks to share.")},10000);
+  try{db=window.claude?await window.claude.use("db"):null}catch(e){db=null}
+  if(!db){clearTimeout(timeout);status("Saved on this device only. Use Copy picks to share.");return}
+  mode="shared";
+  db.collection("picks").onSnapshot(snap=>{clearTimeout(timeout);
+    snap.docs.forEach(d=>{if(d.id in picks&&d.exists){const v=d.data();picks[d.id]={...DEF(),...v,faces:Array.isArray(v.faces)?[...v.faces]:[]}}});
+    saveLocal();render();status("Live · both of you see the same picks")},
+    ()=>{clearTimeout(timeout);mode="local";status("Saved on this device only. Use Copy picks to share.")});
+})();
+$("#copy").addEventListener("click",async()=>{
+  const txt="Mochi picks\n"+["lorenzo","smith"].map(w=>{const q=picks[w];return `${NAMES[w]}: faces=${q.faces.join(",")||"-"}; blush=${q.blush}; color=${q.color}; screen=${q.bg}`}).join("\n");
+  try{await navigator.clipboard.writeText(txt);status("Copied. Paste it to your agent.")}catch(e){status(txt)}
+});
+window.__ready=true;render();requestAnimationFrame(loop);
+</script>
