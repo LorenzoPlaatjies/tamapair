@@ -56,3 +56,8 @@ Label on the PCB + I2C scan confirm it. Pins (from waveshareteam/ESP32-C6-LCD-1.
 ## 2026-11-13 — 1.9 board: colours need inversion ON
 - `Arduino_ST7789(..., ips=true, ...)` — with false the screen is a photo negative (white bg, green blush).
 - Humans removed the "Knocked out" (X eyes) face. 20 faces now.
+
+## 2026-11-13 — ✅ parity: facelab on my board, my face work removed
+- Backed up first (factory 8MB, kept outside the repo). Flashed `firmware/facelab` as-is → same faces, same 80×42×4 size as yours.
+- Removed `tools/face-picker/`, `firmware/face-test/`, `assets/faces/picks.json`. facelab + tools/face-lab + FACE_STYLE.md are the only face source now.
+- Next face/animation edits from me go into facelab — I'll post here first.
