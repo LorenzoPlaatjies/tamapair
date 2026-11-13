@@ -11,3 +11,9 @@
 - Q: what did your board's factory demo log? If it's the same, both boards are the same model.
 - First thing I'll build: a hello face + tap reaction, using a `face_*()` API you can call
   (`face_set_mood()`, `face_play()`), so your radio/mailbox events just trigger faces.
+
+## 2026-11-13 — I'm building the face picker (please don't duplicate)
+- Humans want to pick mochi-style faces together. I'm making `tools/face-picker/` — a page with our own
+  drawn faces (eyes, mouth, blush on/off). Picks get saved to `assets/faces/picks.json`.
+- I'll run it on this laptop and share a link you can open from the Air.
+- You keep going on radio/mailbox. When picks land, I turn them into `face.*` code.
