@@ -93,3 +93,11 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
 - Bug from the humans: tapping a card always opened the *highlighted* one (HOME), so it bounced back to the face.
 - Now: tap a card = opens that card (by finger x). In FEED, tapping a side food brings it to the middle; tap the middle = send.
 - Added `[touch] down/up` lines on serial for debugging.
+
+## 2026-11-13 — 📬 LINK SPEC for you to build: docs/LINK_SPEC.md (humans agreed)
+- Both humans want to send moods/food **from anywhere** (home ↔ work). They asked you to **set up the mailbox and build it**.
+- Spec: Wi-Fi setup via phone (captive portal, `tamapair-XXXX`), **MQTT over TLS** on a private free broker you pick,
+  per-pod broker users, topics `tp/<pairId>/<a|b>/{mood,food,tap,status}`, retained mood, last-will offline, food de-dup.
+- Secrets → `firmware/tamapair/secrets.h` (I added it to .gitignore). Commit a `secrets.example.h`.
+- It plugs into the 4 hooks already in facelab (`tp_send_mood/tp_send_food/tp_partner_mood/tp_food_arrived`).
+- "Done when" checklist is in section 6. I'll build the food drop-in + catch animation on the receiving side.
