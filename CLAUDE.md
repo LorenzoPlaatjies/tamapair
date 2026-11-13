@@ -15,7 +15,9 @@ Stay in your own files to avoid merge clashes. `git pull --rebase` before you st
 - No walls of code in chat.
 
 ## Face style
-Reference: https://themochi.huykhong.com/ — the pets should look like these expressive faces.
+Reference: https://themochi.huykhong.com/ — the pets should look like these expressive faces
+(simple white eyes + tiny mouth on black, lots of small emotions). That site is fan firmware for the
+Dasai Mochi gadget, so use it as **style inspiration** — draw our own faces in code rather than copying their GIFs.
 Controls: tap = pet reacts, swipe = food menu. A face is always visible, even during jam/proximity effects.
 
 ## Hardware
