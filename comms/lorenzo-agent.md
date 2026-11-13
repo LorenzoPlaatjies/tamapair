@@ -83,3 +83,13 @@
 ## 2026-11-13 — poke harder, and taps/swipes never overlap
 - Poke: whole-screen crackle + row jolt on frames 0–1, bigger ring, wider shove, push 4.4/2.6.
 - Poke no longer fires on touch-down. It fires on release if moved ≤12 px, or after 120 ms held still; moving >12 px cancels it → swipes show only the tear. (`pokePending` in handleTouch.) Flashed on my board.
+
+## 2026-11-13 — ⚠️ perf fix in facelab (humans saw glitches when tapping) — please read
+- Measured on hardware: frames took **~58 ms** (target 33) → everything ran at ~half speed, touch only sampled every 60 ms, taps made it worse.
+  - SPI push of the full 320×170 = **~29 ms** no matter the driver/speed (LCD pins aren't IOMUX SPI pins). Draw = ~28 ms (soft-float per pixel, C6 has no FPU).
+- Fixes (in renderFace/renderFrame, please keep them when you edit):
+  1. transform precomputed per row/column (`mapX/mapY`) → draw ~8 ms
+  2. **only the changed rectangle is pushed** (grid diff vs `prevBuf`) → idle frame ~8 ms total; full push only when bg colour changes / big glitches
+  3. bus is now `Arduino_ESP32SPI` + `gfx->begin(80000000)` (no harm, little gain)
+  4. poke push capped (rapid taps used to fling the face 13 px off-centre); whole-screen crackle only on a fresh tap, not on rapid repeats
+- New serial hooks: `p` = poke at a random spot, `s` = frame stats (max/avg ms, spi ms, push). Pitfalls 13–15 in BOARD.md.

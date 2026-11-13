@@ -51,4 +51,6 @@ pinMode(15, OUTPUT); digitalWrite(15, LOW);   // LOW = backlight ON
 10. **Flash size 8MB**, not 16MB: `arduino-cli compile -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M`.
 11. **Stuck in a crash loop / won't upload:** hold BOOT, tap RESET, release BOOT, then upload.
 12. **Stack overflow after panel start** (seen in the factory demo on one board): give big drawing work its own task with ≥8 KB stack, or draw from `loop()` and keep frame buffers global, not on the stack.
-13. **Full-screen redraws are slow over SPI.** Draw the 80×42 face grid into one 320×170 RGB565 buffer (~109 KB, fits in RAM) and push it with one `draw16bitRGBBitmap` call per frame, not thousands of `fillRect`s.
+13. **A full-screen push costs ~30 ms, whatever you do.** Measured: the LCD's SCK/MOSI (GPIO 5/4) aren't the C6's fast IOMUX SPI pins, so the clock is capped (~40 MHz) and 109 KB takes ~29 ms with HWSPI *or* ESP32SPI, at any `begin()` speed. At 30 fps (33 ms budget) that leaves nothing. **Only push the rectangle that changed** (diff the 80×42 grid against last frame): idle frames drop to ~8 ms.
+14. **No FPU on the C6.** Floats are software-emulated: per-pixel float maths over 3360 grid cells cost ~20 ms/frame. Precompute per-row/per-column (`mapX[]/mapY[]`) instead.
+15. **Measure, don't guess:** facelab prints frame times over serial — send `s` (stats), `p` (poke), `l`/`r` (swipe), `d` (dump grid).

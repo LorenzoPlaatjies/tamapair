@@ -14,9 +14,11 @@ static Preferences prefs;
 #define I2C_SCL 8
 #define TOUCH_ADDR 0x15
 
-Arduino_DataBus *bus = new Arduino_HWSPI(6 /*DC*/, 7 /*CS*/, 5 /*SCK*/, 4 /*MOSI*/);
+// ESP32SPI talks to the SPI hardware directly (HWSPI went through the Arduino SPI layer: 30 ms per frame)
+Arduino_DataBus *bus = new Arduino_ESP32SPI(6 /*DC*/, 7 /*CS*/, 5 /*SCK*/, 4 /*MOSI*/, GFX_NOT_DEFINED /*MISO*/, FSPI, false /*not shared*/);
 Arduino_GFX *gfx = new Arduino_ST7789(bus, 14 /*RST*/, 1 /*landscape*/, true /*IPS: colours inverted otherwise*/, 170, 320, 35, 0, 35, 0);
 
+static uint32_t statMax = 0, statSum = 0, statN = 0, statPush = 0;
 // ---------- pixel grid ----------
 static const int W = 80, H = 42, S = 4, OY = 1, SW = 320, SH = 170;
 static uint8_t buf[W * H], tmp[W * H];
@@ -155,18 +157,19 @@ static int reactUntil = -1, beforeReact = 0;
 static int swipeDir = 0; // -1/+1 while a swipe transition runs (sideways tear), 0 = normal squash
 
 // ---------- poke: a light static ripple from the finger + a push that shoves the face away, then springs back ----------
-struct Poke { float x, y; int a; bool on; };
-static Poke poke = {0, 0, 0, false};
+struct Poke { float x, y; int a; bool on; bool crackle; };
+static Poke poke = {0, 0, 0, false, false};
 static const int POKE_LIFE = 11;
 static float pushX = 0, pushY = 0, velX = 0, velY = 0;
 static void addPoke(float x, float y) {
-  poke = {x, y, 0, true};                       // one at a time: a new tap restarts it (no pile-up)
+  poke = {x, y, 0, true, !poke.on};             // whole-screen crackle only on a fresh tap, not on rapid repeats                       // one at a time: a new tap restarts it (no pile-up)
   float dx = CX - x, dy = (EY + 2) - y, d = sqrtf(dx * dx + dy * dy); if (d < 1) { dx = 0; dy = 1; d = 1; }
   velX += dx / d * 4.4f; velY += dy / d * 2.6f; // shove away from the finger
+  velX = constrain(velX, -5.f, 5.f); velY = constrain(velY, -3.f, 3.f); // rapid taps can't stack into a huge fling
 }
 static void tickPoke() {
   velX += -.28f * pushX; velY += -.28f * pushY; velX *= .74f; velY *= .74f; // damped spring back to centre
-  pushX += velX; pushY += velY;
+  pushX = constrain(pushX + velX, -7.f, 7.f); pushY = constrain(pushY + velY, -4.f, 4.f);
   if (fabsf(pushX) < .05f && fabsf(velX) < .05f) pushX = velX = 0;
   if (fabsf(pushY) < .05f && fabsf(velY) < .05f) pushY = velY = 0;
   if (poke.on && ++poke.a >= POKE_LIFE) poke.on = false;
@@ -174,8 +177,8 @@ static void tickPoke() {
 static void applyPoke() {
   if (!poke.on) return;
   int a = poke.a; float R = a * 2.4f, band = 2.4f, dens = .9f * (1 - (float)a / POKE_LIFE);
-  if (a < 2) for (int i = 0; i < W * H / (a ? 40 : 22); i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; // crackle across the screen
-  if (a < 2) { // the whole picture jolts: random rows tear sideways a little
+  if (a < 2 && poke.crackle) for (int i = 0; i < W * H / (a ? 40 : 22); i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; // crackle across the screen
+  if (a < 2 && poke.crackle) { // the whole picture jolts: random rows tear sideways a little
     uint8_t row[W];
     for (int y = 0; y < H; y++) { if (random(100) >= 30) continue; int sh = random(5) - 2; if (!sh) continue;
       memcpy(row, buf + y * W, W); for (int x = 0; x < W; x++) buf[y * W + x] = row[(x - sh + W) % W]; }
@@ -389,10 +392,12 @@ static void renderFace() {
   memcpy(tmp, buf, sizeof buf); memset(buf, 0, sizeof buf);
   float sx, sy, dx, dy; xf(sx, sy, dx, dy);
   const float ox = CX, oy = EY + 2;
-  for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
-    int X = lroundf((x - ox - dx) / sx + ox), Y = lroundf((y - oy - dy) / sy + oy);
-    if (X >= 0 && Y >= 0 && X < W && Y < H && tmp[Y * W + X]) buf[y * W + x] = tmp[Y * W + X];
-  }
+  // the transform is separable: work out the source column/row once (122 float ops) instead of per pixel (3360)
+  static int mapX[W], mapY[H];
+  for (int x = 0; x < W; x++) mapX[x] = lroundf((x - ox - dx) / sx + ox);
+  for (int y = 0; y < H; y++) mapY[y] = lroundf((y - oy - dy) / sy + oy);
+  for (int y = 0; y < H; y++) { int Y = mapY[y]; if (Y < 0 || Y >= H) continue; const uint8_t *src = tmp + Y * W; uint8_t *dst = buf + y * W;
+    for (int x = 0; x < W; x++) { int X = mapX[x]; if (X >= 0 && X < W && src[X]) dst[x] = src[X]; } }
   if (phase == IN && MOODS[mood].enter == E_OFF && pf < 11) { // old-TV switch-off
     memset(buf, 0, sizeof buf);
     if (pf < 5) { int w = lroundf(76 * (1 - pf / 5.f)) + 2; rect(CX - w / 2, EY, w, 2, 1); }
@@ -427,7 +432,24 @@ static void renderFrame() {
     uint16_t c = COL[v];
     for (int j = 0; j < S; j++) { uint16_t *p = fb + (y * S + OY + j) * SW + x * S; p[0] = p[1] = p[2] = p[3] = c; }
   }
-  gfx->draw16bitRGBBitmap(0, 0, fb, SW, SH);
+  // only send what changed: the screen wiring can't go faster than ~30 ms for a full frame, but most frames
+  // change just a blink or a wobble. Compare with last frame's grid and push the changed rectangle only.
+  static uint8_t prevBuf[W * H]; static uint16_t prevBg = 1; static bool first = true;
+  int gx0 = W, gy0 = H, gx1 = -1, gy1 = -1;
+  if (first || bg != prevBg) { gx0 = 0; gy0 = 0; gx1 = W - 1; gy1 = H - 1; }
+  else for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) if (buf[y * W + x] != prevBuf[y * W + x]) {
+    if (x < gx0) gx0 = x; if (x > gx1) gx1 = x; if (y < gy0) gy0 = y; if (y > gy1) gy1 = y; }
+  memcpy(prevBuf, buf, sizeof buf); prevBg = bg;
+  uint32_t t0 = micros();
+  if (gx1 >= 0) {
+    int sx0 = gx0 * S, sw = (gx1 - gx0 + 1) * S, sy0 = gy0 * S + OY, sh = (gy1 - gy0 + 1) * S;
+    if (first) { sy0 = 0; sh = SH; }                                   // first frame also clears the 1 px margins
+    gfx->startWrite();
+    for (int y = sy0; y < sy0 + sh; y++) gfx->draw16bitRGBBitmap(sx0, y, fb + y * SW + sx0, sw, 1);
+    gfx->endWrite();
+  }
+  first = false;
+  statPush = (micros() - t0) / 1000;
 }
 
 // ---------- side button (BOOT, GPIO 9, active LOW): home -> menu, anywhere else -> home ----------
@@ -505,6 +527,8 @@ static void handleSerial() {
     char c = Serial.read();
     if (c == 'b') { if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME); }
     else if (c == 'h') go(S_HOME);
+    else if (c == 'p') { if (screen == S_HOME) addPoke(random(W), random(H)); }          // poke at a random spot
+    else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
     else if (c == 'd') { Serial.println("[dump]"); for (int y = 0; y < H; y++) { char row[W + 1]; for (int x = 0; x < W; x++) row[x] = '0' + buf[y * W + x]; row[W] = 0; Serial.println(row); } Serial.println("[end]"); }
   }
@@ -513,7 +537,7 @@ static void handleSerial() {
 void setup() {
   Serial.begin(115200);
   pinMode(PIN_SD_CS, OUTPUT); digitalWrite(PIN_SD_CS, HIGH);
-  if (!gfx->begin()) Serial.println("[face] gfx->begin() failed");
+  if (!gfx->begin(80000000)) Serial.println("[face] gfx->begin() failed"); // 80 MHz SPI: full frame in ~11 ms instead of 30
   gfx->fillScreen(0x0000);
   pinMode(PIN_BL, OUTPUT); digitalWrite(PIN_BL, LOW); // LOW = backlight on
   Wire.begin(I2C_SDA, I2C_SCL);
@@ -536,4 +560,5 @@ void loop() {
   homeLogic();
   if (foodSentF >= 0 && ++foodSentF > 14) foodSentF = -1;
   renderFrame();
+  uint32_t took = millis() - now; statSum += took; statN++; if (took > statMax) statMax = took;
 }
