@@ -18,6 +18,28 @@ Tap your screen while close → **send food** flying to the other pet.
 - **Swipe** → food menu. Pick a food; if the friend is near, it flies over to them.
 - Room for **secrets**: hidden reactions/easter eggs (not just faces) — e.g. special combos when both pets do something at once.
 
+## Works from anywhere (big idea)
+Feeding is **not** a proximity thing — you can feed each other from anywhere (home, work…).
+The food just **drops into the other person's screen**.
+
+Also from anywhere, only between our two chips (a private pair, no one else, no blocking 😄):
+- **Feed** — pick food from the swipe menu → it lands on the friend's screen.
+- **Notes** — draw with your finger (e.g. "love you", a heart) → the doodle appears on theirs.
+- **Tap / "hey I'm here"** — tap a button → their pet jumps + screen flashes (later: buzz/vibrate with a small motor).
+- Later: mic / voice ping.
+
+How: each board joins Wi-Fi and checks a tiny private online "mailbox" just for the pair.
+Close together still uses the direct radio (for jamming — instant, no Wi-Fi needed).
+
+| | Close (radio) | Anywhere (Wi-Fi mailbox) |
+|---|---|---|
+| Jam session | ✅ | — |
+| Feed | ✅ | ✅ |
+| Doodle notes | ✅ | ✅ |
+| Tap / buzz | ✅ | ✅ |
+
+Open question: which online mailbox to use (needs a free account; keys stay out of the public repo).
+
 ## How proximity works
 Boards shout a tiny "hi, I'm here + my mood" over radio (ESP-NOW) ~5×/sec.
 Signal strength = distance. Strong signal → close. No new protocol hardware needed.
