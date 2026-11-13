@@ -3,14 +3,16 @@
     "Lorenzo": {
       "faces": [],
       "blush": "on",
-      "eye": "#ffffff"
+      "eye": "#ffffff",
+      "style": "retro"
     },
     "Dr. Smith": {
       "faces": [
         "wink"
       ],
       "blush": "on",
-      "eye": "#ffffff"
+      "eye": "#ffffff",
+      "style": "retro"
     }
   }
 }
