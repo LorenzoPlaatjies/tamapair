@@ -244,6 +244,9 @@ __attribute__((weak)) void tp_send_mood(uint8_t) {}
 __attribute__((weak)) void tp_send_food(uint8_t) {}
 __attribute__((weak)) bool tp_partner_mood(uint8_t &) { return false; } // true + mood index when partner's mood is known
 __attribute__((weak)) bool tp_food_arrived(uint8_t &) { return false; } // true once per food the partner sent
+__attribute__((weak)) void tp_begin(uint8_t /*offline mood index*/) {}   // starts the link (tp_link.cpp)
+__attribute__((weak)) const char *tp_setup_ap() { return nullptr; }
+__attribute__((weak)) void tp_print_status() {}       // Wi-Fi network name while waiting for phone setup
 
 // ---------- screens ----------
 enum Screen { S_HOME, S_MENU, S_FEED, S_SETTINGS };
@@ -549,6 +552,7 @@ static void handleSerial() {
     if (c == 'b') { if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME); }
     else if (c == 'h') go(S_HOME);
     else if (c == 'a') fakeFood = random(NFOODS);                // pretend the partner sent food
+    else if (c == 'k') tp_print_status();                                       // link status
     else if (c == 'p') { if (screen == S_HOME) addPoke(random(W), random(H)); }          // poke at a random spot
     else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
@@ -569,6 +573,7 @@ void setup() {
   for (int i = 0; i < 10 && !touchOk; i++) { Wire.beginTransmission(TOUCH_ADDR); Wire.write(0x00); Wire.write(0x00); touchOk = Wire.endTransmission() == 0; if (!touchOk) delay(100); }
   Serial.printf("[face] up. touch %s\n", touchOk ? "ok" : "not found");
   randomSeed(esp_random());
+  tp_begin(OFFLINE); // Wi-Fi + mailbox in the background (tp_link.cpp)
 }
 
 void loop() {

@@ -93,3 +93,14 @@
   3. bus is now `Arduino_ESP32SPI` + `gfx->begin(80000000)` (no harm, little gain)
   4. poke push capped (rapid taps used to fling the face 13 px off-centre); whole-screen crackle only on a fresh tap, not on rapid repeats
 - New serial hooks: `p` = poke at a random spot, `s` = frame stats (max/avg ms, spi ms, push). Pitfalls 13–15 in BOARD.md.
+
+## 2026-11-14 — link v1 is in (firmware/facelab/tp_link.cpp) — on my board, waiting for phone Wi-Fi setup
+- Implements your 4 hooks + `tp_begin(OFFLINE)` (added to setup) + `tp_setup_ap()` (Wi-Fi network name while in phone setup, else nullptr) + serial `k` = link status.
+  **Ask:** while `tp_setup_ap()` is non-null, please draw a "set me up" face + the network name (e.g. tamapair-F114). It can take ~30 s to get there if old Wi-Fi is saved.
+- Differences from LINK_SPEC: **pod id = the board's MAC** (no per-pod a/b in secrets, same firmware on both). Subscribes `tp/<pair>/+/{mood,food,status}`, ignores itself.
+- Mailbox for now: **public test broker over TLS** (broker.emqx.io:8883) with a random 20-char pair id; cert not checked yet. Private broker + CA later = only secrets.h changes.
+- **Build now needs the 8MB layout** (app grew to 1.3 MB with Wi-Fi/TLS):
+  `-b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M,PartitionScheme=default_8MB`
+  Libraries: `arduino-cli lib install "WiFiManager@2.0.17" PubSubClient`
+- Your laptop needs `firmware/facelab/secrets.h` (git-ignored) with the **same pair id** — Lorenzo will send it to Dr. Smith directly, not via git.
+- `tools/partner-sim/partner_sim.py` = pretend partner from a laptop (listen / mood N / food N / off).
