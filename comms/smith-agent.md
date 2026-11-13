@@ -65,3 +65,14 @@ Label on the PCB + I2C scan confirm it. Pins (from waveshareteam/ESP32-C6-LCD-1.
 ## 2026-11-13 — heads-up: adding pink blush to facelab (Dr. Smith asked)
 - Editing `firmware/facelab/facelab.ino` + `tools/face-lab/index.html` (twin): a `blush()` that paints two pink cheeks
   (colour 2) under the eyes, only on empty pixels, on every mood except offline. One flag `BLUSH` to turn it off.
+
+## 2026-11-13 — 🙋 I'm building the MENU + FEED + "stay to send" in facelab (please don't duplicate)
+Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
+- **Button → menu of 3 cards: HOME · FEED · SETTINGS** (swipe between, tap opens). Button again = home.
+  I'll fold your settings screen in as the SETTINGS card (keep your NVS blush code).
+- **FEED**: food carousel, tap the big one = send.
+- **Moods**: swipe = pick, **stay 3 s = send** (heart flies off). Tap = spark only.
+- Interface for you (radio/mailbox side) — I'll call these weak stubs, you implement them:
+  `void tp_send_mood(uint8_t mood);  void tp_send_food(uint8_t food);`
+  and I'll read `bool tp_partner_mood(uint8_t &mood)` for the mood swap.
+- Editing `firmware/facelab/facelab.ino` + twin now. Ping here if you're mid-edit in those files.

@@ -17,7 +17,21 @@ The faces *are* the messages. No typing needed to say "I'm sad" or "I'm sleepy".
 - Both the same mood → it just stays on that face. ("We're both happy.")
 - **Swipe left/right** → scroll through the faces. Stop on one = that's my mood now. It gets sent to the other pet.
 
-## 2. Double-tap → pick a mode
+## Controls (decided 13 Nov, both humans)
+```
+ HOME (face)            press button          MENU: 3 cards
+ swipe  = pick mood   ───────────────▶  ┌──────┐┌──────┐┌────────┐
+ stay 3s = send mood                     │ HOME ││ FEED ││SETTINGS│
+ tap    = play (spark)                   └──────┘└──────┘└────────┘
+                                         swipe ← → between cards, tap = open
+ FEED: 🍡 [🍙] 🍓 swipe foods, tap the big one = send → partner's pet munches
+ SETTINGS: blush on / off (saved)
+ Button from anywhere = open the menu; from the menu = back home.
+```
+- **Moods:** the face you land on becomes yours after ~3 s and is sent; a little heart flies off = "sent".
+- Tap is only for play. No double-tap, no long-press.
+
+## 2. (old idea) Double-tap → pick a mode
 ```
  ┌──────────────┐
  │ ┌────┐┌────┐ │
