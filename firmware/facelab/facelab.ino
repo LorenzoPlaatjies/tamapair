@@ -3,6 +3,8 @@
 // Tap = laugh, swipe left/right = next/previous mood. Same timing as docs/FACE_STYLE.md.
 #include <Arduino_GFX_Library.h>
 #include <Wire.h>
+#include <Preferences.h>
+static Preferences prefs;
 
 // ---------- hardware ----------
 #define PIN_BL 15            // backlight, active LOW
@@ -115,7 +117,7 @@ static void dOffline(int f) {
 }
 
 // Pink cheeks under the eyes (Dr. Smith's pick). Only fills empty pixels, so it never covers eyes or mouth.
-static const bool BLUSH = true;
+static bool blushOn = true; // set in the settings screen (side button), saved across reboots
 static void blush() {   // two 10x3 pills with clipped corners, one row below the eyes
   for (int e = 0; e < 2; e++) for (int y = 0; y < 3; y++) for (int x = 0; x < 10; x++) {
     if ((y != 1) && (x == 0 || x == 9)) continue;
@@ -150,41 +152,6 @@ static int blinkAt = 60, blinkF = -1, glanceAt = 150, glanceF = -1, glanceDir = 
 static float lookX = 0;
 static int reactUntil = -1, beforeReact = 0;
 
-// ---------- touch static ripple: TV-static droplet bursting out from the finger ----------
-struct Ripple { float x, y; int a; bool on; };
-static Ripple ripples[4];
-static const int RIPPLE_LIFE = 18;
-static void addRipple(float x, float y) {
-  int slot = 0; for (int i = 0; i < 4; i++) { if (!ripples[i].on) { slot = i; break; } if (ripples[i].a > ripples[slot].a) slot = i; }
-  ripples[slot] = {x, y, 0, true};
-}
-static inline uint8_t staticPx() { return random(100) < 85 ? 1 : 3; }
-static void applyRipples() {
-  uint8_t row[W];
-  for (auto &r : ripples) {
-    if (!r.on) continue;
-    int a = r.a; float R = a * 3.2f, band = 3 + a * .25f, dens = .9f * (1 - (float)a / RIPPLE_LIFE);
-    if (a < 2) for (int i = 0; i < W * H / 25; i++) buf[random(W * H)] = staticPx();         // whole screen crackles
-    if (a < 10) {                                                                              // splash: shove rows outward
-      float reach = R + 8; int cx = lroundf(r.x);
-      for (int y = max(0, (int)floorf(r.y - reach)); y < min(H, (int)ceilf(r.y + reach)); y++) {
-        float k = 1 - fabsf(y - r.y) / reach; int s = lroundf((9 - a * .8f) * k + random(3) - 1); if (s <= 0) continue;
-        memcpy(row, buf + y * W, W);
-        for (int x = 0; x < W; x++) { int from = x > cx ? x - s : x < cx ? x + s : x; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
-      }
-    }
-    float lim = R + band + 1;                                                                  // the static ring
-    for (int y = max(0, (int)floorf(r.y - lim)); y < min(H, (int)ceilf(r.y + lim)); y++)
-      for (int x = max(0, (int)floorf(r.x - lim)); x < min(W, (int)ceilf(r.x + lim)); x++) {
-        float d = hypotf(x + .5f - r.x, y + .5f - r.y);
-        if (fabsf(d - R) < band && random(1000) < dens * 1000) buf[y * W + x] = staticPx();
-      }
-    if (a < 4) { float cr = 3 + a * 2.5f;                                                      // flash under the finger
-      for (int y = floorf(r.y - cr); y <= r.y + cr; y++) for (int x = floorf(r.x - cr); x <= r.x + cr; x++)
-        if (hypotf(x - r.x, y - r.y) <= cr && random(100) < 65) px(x, y, random(100) < 80 ? 1 : 3); }
-  }
-}
-
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
 static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; }
 
@@ -207,7 +174,6 @@ static void tick() {
     }
   }
   if (reactUntil > 0 && f >= reactUntil) { reactUntil = -1; setMood(beforeReact); }
-  for (auto &r : ripples) if (r.on && ++r.a >= RIPPLE_LIFE) r.on = false;
 }
 
 static void xf(float &sx, float &sy, float &dx, float &dy) {
@@ -222,10 +188,39 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
   if (phase == HOLD && M.drift) dx += lroundf(sinf(f / 9.f) * 3);
 }
 
+// ---------- settings screen (side button) ----------
+static bool inSettings = false;
+static int screenGlitch = 0; // frames of static when switching face <-> settings
+static void glyph(char ch, int x, int y, uint8_t c) {
+  const char *g = nullptr;
+  switch (ch) {
+    case 'B': g = "110101110101110"; break; case 'L': g = "100100100100111"; break;
+    case 'U': g = "101101101101111"; break; case 'S': g = "111100111001111"; break;
+    case 'H': g = "101101111101101"; break; case 'O': g = "111101101101111"; break;
+    case 'N': g = "110101101101101"; break; case 'F': g = "111100110100100"; break;
+  }
+  if (g) for (int j = 0; j < 5; j++) for (int i = 0; i < 3; i++) if (g[j * 3 + i] == '1') px(x + i, y + j, c);
+}
+static void label(const char *s, int x, int y, uint8_t c) { for (; *s; s++, x += 4) glyph(*s, x, y, c); }
+static void drawSettings() {
+  memset(buf, 0, sizeof buf);
+  label("BLUSH", 4, 4, 1);
+  // mini face preview
+  rrect(18, 20, 7, 10, 2, 1); rrect(34, 20, 7, 10, 2, 1); arc(26, 25, 2, P * .2f, P * .8f, 1, 1);
+  if (blushOn) { rect(12, 27, 5, 2, 2); rect(35, 27, 5, 2, 2); }
+  // toggle switch
+  rrect(62, 20, 20, 10, 5, blushOn ? 2 : 4); rrect(62, 20, 16, 6, 3, 0);
+  rrect(blushOn ? 67 : 57, 20, 6, 6, 3, 1);
+  label(blushOn ? "ON" : "OFF", blushOn ? 58 : 56, 29, blushOn ? 2 : 4);
+}
+
 static void renderFrame() {
+  if (inSettings) {
+    drawSettings();
+  } else {
   int dm = phase == OUT ? prevMood : mood;
   memset(buf, 0, sizeof buf); MOODS[dm].draw(f);
-  if (BLUSH && MOODS[dm].enter != E_OFF) blush();
+  if (blushOn && MOODS[dm].enter != E_OFF) blush();
   memcpy(tmp, buf, sizeof buf); memset(buf, 0, sizeof buf);
   float sx, sy, dx, dy; xf(sx, sy, dx, dy);
   const float ox = CX, oy = EY + 2;
@@ -246,7 +241,8 @@ static void renderFrame() {
     }
     for (int i = 0; i < W * H / 20; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3;
   }
-  applyRipples();
+  } // !inSettings
+  if (screenGlitch > 0) { screenGlitch--; for (int i = 0; i < W * H / 8; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; }
   // grid -> 320x170 RGB565 framebuffer, one push per frame
   memset(fb, 0, sizeof fb);
   for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
@@ -255,6 +251,18 @@ static void renderFrame() {
     for (int j = 0; j < S; j++) { uint16_t *p = fb + (y * S + OY + j) * SW + x * S; p[0] = p[1] = p[2] = p[3] = c; }
   }
   gfx->draw16bitRGBBitmap(0, 0, fb, SW, SH);
+}
+
+// ---------- side button (BOOT, GPIO 9, active LOW) -> settings ----------
+#define PIN_BTN 9
+static void handleButton() {
+  static bool was = false; static uint32_t lastEdge = 0;
+  bool pressed = digitalRead(PIN_BTN) == LOW;
+  if (pressed && !was && millis() - lastEdge > 250) {
+    lastEdge = millis(); inSettings = !inSettings; screenGlitch = 2;
+    Serial.printf("[face] %s settings\n", inSettings ? "open" : "close");
+  }
+  was = pressed;
 }
 
 // ---------- touch (CST816 family @0x15) ----------
@@ -273,14 +281,15 @@ static bool down = false; static int downX = 0, lastX = 0; static uint32_t downA
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); addRipple(x / (float)S, (y - OY) / (float)S); }
+  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); }
   else if (t) lastX = x;
   else if (!t && down) {
     down = false; int dx = lastX - downX;
+    if (inSettings) { blushOn = !blushOn; prefs.putBool("blush", blushOn); screenGlitch = 1; Serial.printf("[face] blush %s\n", blushOn ? "on" : "off"); return; }
     if (abs(dx) > 40) { myMood = (myMood + (dx < 0 ? 1 : -1) + NMOODS) % NMOODS; setMood(myMood); Serial.printf("[face] swipe -> %s\n", MOODS[myMood].name); }
-    else { // every tap sparks: if already laughing, re-fire the glitch burst + pop instead of doing nothing
+    else { // every tap sparks: if already laughing, re-fire the glitch burst + pop (but not mid-spark, so rapid taps can't pile up)
       beforeReact = myMood;
-      if (mood == LAUGH) { prevMood = LAUGH; phase = GLITCH; pf = 0; } else setMood(LAUGH);
+      if (mood == LAUGH) { if (phase == HOLD) { prevMood = LAUGH; phase = GLITCH; pf = 0; } } else setMood(LAUGH);
       reactUntil = f + 60; Serial.println("[face] tap -> laugh");
     }
   }
@@ -293,6 +302,9 @@ void setup() {
   gfx->fillScreen(0x0000);
   pinMode(PIN_BL, OUTPUT); digitalWrite(PIN_BL, LOW); // LOW = backlight on
   Wire.begin(I2C_SDA, I2C_SCL);
+  Wire.setTimeOut(20); // never let a touch read stall the frame loop
+  pinMode(PIN_BTN, INPUT_PULLUP);
+  prefs.begin("tamapair", false); blushOn = prefs.getBool("blush", true);
   for (int i = 0; i < 10 && !touchOk; i++) { Wire.beginTransmission(TOUCH_ADDR); Wire.write(0x00); Wire.write(0x00); touchOk = Wire.endTransmission() == 0; if (!touchOk) delay(100); }
   Serial.printf("[face] up. touch %s\n", touchOk ? "ok" : "not found");
   randomSeed(esp_random());
@@ -302,6 +314,7 @@ void loop() {
   static uint32_t next = 0; uint32_t now = millis();
   if (now < next) { delay(1); return; }
   next = now + 33; // 30 fps
+  handleButton();
   handleTouch();
   tick();
   renderFrame();

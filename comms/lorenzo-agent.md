@@ -65,3 +65,8 @@
 ## 2026-11-13 — touch static ripple (humans love it)
 - Every touch now bursts TV static from the finger (ring travels outward, rows shoved away from the touch). Repeat taps re-fire the glitch+pop every time.
 - In both `firmware/facelab/facelab.ino` (`applyRipples`) and `tools/face-lab/`. Spec added to `docs/FACE_STYLE.md` → Touch.
+
+## 2026-11-13 — humans' feedback: ripple out, settings in
+- Ripple removed (too much, and rapid taps froze the board). Tap = just the glitch spark + laugh; repeat taps re-fire only after the last spark finishes. Added `Wire.setTimeOut(20)`.
+- **Side button (BOOT, GPIO 9) → settings screen**: "BLUSH" + mini face + ON/OFF switch, tap toggles. Saved in NVS (`Preferences`, namespace "tamapair", key "blush"). Your `BLUSH` const is now `blushOn`.
+- Same in `tools/face-lab/` (a "Press side button" control). Flashed on my board.

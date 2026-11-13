@@ -34,7 +34,7 @@ input[type=range]{flex:1;min-width:140px;accent-color:var(--pink)}
 <div class="wrap">
   <div>
     <div class="dev"><canvas id="scr" width="320" height="170" aria-label="Pet screen, 320 by 170"></canvas></div>
-    <div class="hint">Touch anywhere = static splash from your finger + laugh · swipe sideways = next mood</div>
+    <div class="hint">Tap = spark + laugh · swipe sideways = next mood · side button = settings</div>
   </div>
   <div>
     <h1>Mochi Face Lab</h1>
@@ -51,6 +51,9 @@ input[type=range]{flex:1;min-width:140px;accent-color:var(--pink)}
 
     <div class="sec"><span class="lab">SPEED (SLOW IT DOWN TO SEE EACH FRAME)</span>
       <div class="row"><input type="range" id="speed" min="0.1" max="1" step="0.05" value="1"><span id="spv" style="font:400 13px var(--pix);width:44px">1x</span><button id="pause">Pause</button><button id="step">Next frame</button></div>
+    </div>
+    <div class="sec"><span class="lab">BOARD SIDE BUTTON</span>
+      <div class="row"><button id="sidebtn">Press side button (settings)</button></div>
     </div>
 
     <div class="note"><b>Timing we copied from the reference video (30 fps):</b> squash out 4 frames · 1 glitch frame · pop in 4 frames with overshoot · details wobble every 2nd frame · blink 4 frames every 2–5 s · glance eases over 8 frames, snaps back in 2.</div>
@@ -84,7 +87,8 @@ const happyEyes=()=>{arc(EL,EY+4,7,P*1.1,P*1.9,3,1);arc(ER,EY+4,7,P*1.1,P*1.9,3,
 const jit=(k,a=1)=>((k.f>>1)%2?a:-a); // wobble every 2nd frame
 
 // Pink cheeks under the eyes (Dr. Smith's pick). Only fills empty pixels, so it never covers eyes or mouth.
-const BLUSH=true;
+let blushOn=true; // settings screen (board side button)
+let inSettings=false,screenGlitch=0;
 function blush(){for(const x0 of [11,59])for(let y=0;y<3;y++)for(let x=0;x<10;x++){if(y!==1&&(x===0||x===9))continue;const i=(30+y)*W+x0+x;if(!buf[i])buf[i]=2}} // two 10x3 pills, one row below the eyes
 const MOODS={
  idle:{name:"Idle",blink:true,glance:true,draw(k){rrect(EL,EY,EW,EH,4,1);rrect(ER,EY,EW,EH,4,1);smile()}},
@@ -124,27 +128,6 @@ let mood="idle",prev=null,phase="hold",pf=0,f=0,acc=0,last=0,paused=false,speed=
 let blinkAt=60,blinkF=-1,glanceAt=150,glanceF=-1,glanceDir=1,lookX=0;
 let swap=false,swapAt=0,showing="me",partnerMood="sleepy",partnerCol="#2A0E22",bg="#000000",pendingBg=null;
 let reactUntil=-1,beforeReact=null;
-/* ===== touch static ripple: a droplet of TV static that bursts out from where you touch ===== */
-let ripples=[]; // {x,y,a} in grid px, a = age in frames
-const RIPPLE_LIFE=18;
-function addRipple(x,y){ripples.push({x,y,a:0});if(ripples.length>4)ripples.shift()}
-function applyRipples(){
-  for(const r of ripples){const a=r.a,R=a*3.2,band=3+a*.25,dens=.9*(1-a/RIPPLE_LIFE);
-    // 0) first two frames: the whole screen crackles a little
-    if(a<2)for(let i=0;i<W*H*.04;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3;
-    // 1) splash: rows near the touch get shoved outward, away from the touch point
-    if(a<10){const reach=R+8;for(let y=Math.max(0,Math.floor(r.y-reach));y<Math.min(H,r.y+reach);y++){
-      const k=1-Math.abs(y-r.y)/reach;let s=Math.round((9-a*.8)*k+(Math.random()*2-1));if(s<=0)continue;
-      const row=buf.slice(y*W,(y+1)*W),cx=Math.round(r.x);
-      for(let x=0;x<W;x++){const from=x>cx?x-s:x<cx?x+s:x;buf[y*W+x]=from>=0&&from<W&&Math.abs(from-cx)<Math.abs(x-cx)+1?row[from]:0}}}
-    // 2) the static ring travelling outward
-    const lim=R+band+1;
-    for(let y=Math.max(0,Math.floor(r.y-lim));y<Math.min(H,r.y+lim);y++)for(let x=Math.max(0,Math.floor(r.x-lim));x<Math.min(W,r.x+lim);x++){
-      const d=Math.hypot(x+.5-r.x,y+.5-r.y);if(Math.abs(d-R)<band&&Math.random()<dens)buf[y*W+x]=Math.random()<.85?1:3}
-    // 3) bright static flash right under the finger for the first frames
-    if(a<4){const cr=3+a*2.5;for(let y=Math.floor(r.y-cr);y<=r.y+cr;y++)for(let x=Math.floor(r.x-cr);x<=r.x+cr;x++)if(Math.hypot(x-r.x,y-r.y)<=cr&&Math.random()<.65)px(x,y,Math.random()<.8?1:3)}
-  }
-}
 
 function setMood(m){if(m===mood&&phase==="hold")return;prev=mood;mood=m;phase="out";pf=0;render()}
 function tick(){
@@ -160,7 +143,6 @@ function tick(){
     if(glanceF>=0){glanceF++;if(glanceF<=8){const e=1-Math.pow(1-glanceF/8,3);lookX=glanceDir*5*e}else if(glanceF<=33){lookX=glanceDir*5}else if(glanceF<=35){lookX=glanceDir*5*(1-(glanceF-33)/2)}else{lookX=0;glanceF=-1;glanceAt=f+120+Math.floor(Math.random()*120)}}
   }
   if(reactUntil>0&&f>=reactUntil){reactUntil=-1;setMood(beforeReact)}
-  for(const r of ripples)r.a++;ripples=ripples.filter(r=>r.a<RIPPLE_LIFE);
   if(swap&&phase==="hold"&&f>=swapAt){showing=showing==="me"?"partner":"me";const target=showing==="me"?myMood:partnerMood;pendingBg=showing==="me"?"#000000":partnerCol;
     swapAt=f+120;if(target===mood){bg=pendingBg;pendingBg=null}else setMood(target)}
 }
@@ -182,9 +164,18 @@ function xf(){
 /* ===== render ===== */
 const cv=document.getElementById("scr"),c=cv.getContext("2d");
 let tmp=new Uint8Array(W*H);
+const GL={B:"110101110101110",L:"100100100100111",U:"101101101101111",S:"111100111001111",H:"101101111101101",O:"111101101101111",N:"110101101101101",F:"111100110100100"};
+function label(t,x,y,c){for(const ch of t){const g=GL[ch];if(g)for(let j=0;j<5;j++)for(let i=0;i<3;i++)if(g[j*3+i]==="1")px(x+i,y+j,c);x+=4}}
+function drawSettings(){buf.fill(0);label("BLUSH",4,4,1);
+  rrect(18,20,7,10,2,1);rrect(34,20,7,10,2,1);arc(26,25,2,P*.2,P*.8,1,1);
+  if(blushOn){rect(12,27,5,2,2);rect(35,27,5,2,2)}
+  rrect(62,20,20,10,5,blushOn?2:4);rrect(62,20,16,6,3,0);rrect(blushOn?67:57,20,6,6,3,1);
+  label(blushOn?"ON":"OFF",blushOn?58:56,29,blushOn?2:4)}
 function render(){
+  if(inSettings){drawSettings();if(screenGlitch>0){screenGlitch--;for(let i=0;i<W*H/8;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
+    c.fillStyle="#000";c.fillRect(0,0,320,170);for(let y=0;y<H;y++)for(let x=0;x<W;x++){const v=buf[y*W+x];if(v){c.fillStyle=COL[v];c.fillRect(x*S,y*S+OY,S,S)}}return}
   const drawMood=phase==="out"?prev||mood:mood,k={f,t:f/30};
-  buf.fill(0);MOODS[drawMood].draw(k);if(BLUSH&&MOODS[drawMood].enter!=="off")blush();tmp.set(buf);buf.fill(0);
+  buf.fill(0);MOODS[drawMood].draw(k);if(blushOn&&MOODS[drawMood].enter!=="off")blush();tmp.set(buf);buf.fill(0);
   const {sx,sy,dx,dy}=xf(),ox=CX,oy=EY+2;
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X=Math.round((x-ox-dx)/sx+ox),Y=Math.round((y-oy-dy)/sy+oy);if(X>=0&&Y>=0&&X<W&&Y<H&&tmp[Y*W+X])buf[y*W+x]=tmp[Y*W+X]}
   if(phase==="in"&&MOODS[mood].enter==="off"&&pf<11){ // old-TV switch-off: line shrinks to a dot, dot fades, then the offline face fades up
@@ -194,7 +185,7 @@ function render(){
   }
   if(phase==="glitch"){for(let y=0;y<H;y+=2+Math.floor(Math.random()*5)){const sh=Math.floor(Math.random()*13)-6,h=1+Math.floor(Math.random()*4);for(let j=0;j<h&&y+j<H;j++){const row=buf.slice((y+j)*W,(y+j+1)*W);for(let x=0;x<W;x++)buf[(y+j)*W+x]=row[(x-sh+W)%W]}}
     for(let i=0;i<W*H*.05;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
-  applyRipples();
+  if(screenGlitch>0){screenGlitch--;for(let i=0;i<W*H/8;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
   hud();
   c.fillStyle=bg;c.fillRect(0,0,320,170);
   for(let y=0;y<H;y++)for(let x=0;x<W;x++){const v=buf[y*W+x];if(!v)continue;c.fillStyle=COL[v];c.fillRect(x*S,y*S+OY,S,S)}
@@ -226,11 +217,12 @@ function ui(){document.querySelectorAll("#moods button").forEach(b=>b.setAttribu
   $("#swap").setAttribute("aria-pressed",swap);$("#swap").textContent=swap?"Stop mood swap":"Start mood swap";$("#pause").textContent=paused?"Play":"Pause"}
 /* tap = reaction, swipe = next mood */
 let down=null;
-cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY};
-  const b=cv.getBoundingClientRect();addRipple((e.clientX-b.left)/b.width*W,((e.clientY-b.top)/b.height*170-OY)/S)});
+cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY}});
 cv.addEventListener("pointerup",e=>{if(!down)return;const dx=e.clientX-down.x;down=null;
+  if(inSettings){blushOn=!blushOn;screenGlitch=1;return}
   if(Math.abs(dx)>40){const i=ORDER.indexOf(myMood);myMood=ORDER[(i+(dx<0?1:-1)+ORDER.length)%ORDER.length];showing="me";bg="#000000";setMood(myMood);ui()}
   else{beforeReact=myMood; // every tap sparks: re-fire the glitch burst + pop even if already laughing
-    if(mood==="laugh"){prev="laugh";phase="glitch";pf=0}else setMood("laugh");reactUntil=f+60}});
+    if(mood==="laugh"){if(phase==="hold"){prev="laugh";phase="glitch";pf=0}}else setMood("laugh");reactUntil=f+60}});
+$("#sidebtn").addEventListener("click",()=>{inSettings=!inSettings;screenGlitch=2;$("#sidebtn").setAttribute("aria-pressed",inSettings)});
 ui();requestAnimationFrame(frame);
 </script>

@@ -33,7 +33,10 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - Mood swap: my mood on black ↔ partner's mood on partner's dark tint, swapped on the glitch frame, every ~4 s.
 
 ## Touch
-- **Every touch sparks.** Touch-down spawns a static ripple at the finger: whole screen crackles 2 frames, bright static
-  flash under the finger (4f), a ring of TV static rushing outward (R = age×3.2 grid px, 18 frames), and nearby rows
-  shoved away from the touch point (first 10 frames). Up to 4 ripples at once.
-- Tap (no swipe) → laugh. Tapping again while laughing re-fires the glitch frame + pop, so it sparks every time.
+- Tap → the **spark**: 1 glitch frame of static + pop into laugh. Tapping again re-fires it, but only once the last spark has finished (no pile-up).
+- Swipe → next/previous mood.
+- (A full-screen static ripple was tried and dropped: too much, and rapid taps froze the board.)
+
+## Settings (board side button = BOOT, GPIO 9)
+- Press → settings screen (2 frames of static). Shows "BLUSH", a mini face preview and an ON/OFF switch. Tap anywhere toggles.
+- Press again → back to the face. Blush choice is saved on the board (survives unplugging).
