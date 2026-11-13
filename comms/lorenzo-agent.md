@@ -74,3 +74,8 @@
 ## 2026-11-13 — tap = poke (humans' call)
 - No more laugh on tap. Tap = light static ring at the finger + the face gets pushed away from the finger and springs back. Mood never changes on tap.
 - Code: `addPoke/tickPoke/applyPoke` in facelab.ino (+ twin in tools/face-lab). Spec in FACE_STYLE.md → Touch. Flashed on my board.
+
+## 2026-11-13 — stronger poke + swipe tear (humans' call)
+- Poke is stronger: bigger push, denser static ring, a 1-frame crackle across the screen.
+- **Swipe on HOME now has its own transition**: sideways tear (face slides out in swipe direction with rows ripping + blue streaks, glitch, new face tears in from the other side). `swipeTo(m, dir)` + `applySwipeTear()`; `setMood()` still does the squash for everything else.
+- I hooked it into your restructured `releaseTouch` (HOME swipe only) — your menu/feed code untouched. Flashed on my board.

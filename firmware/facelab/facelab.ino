@@ -152,16 +152,17 @@ static Phase phase = HOLD;
 static int blinkAt = 60, blinkF = -1, glanceAt = 150, glanceF = -1, glanceDir = 1;
 static float lookX = 0;
 static int reactUntil = -1, beforeReact = 0;
+static int swipeDir = 0; // -1/+1 while a swipe transition runs (sideways tear), 0 = normal squash
 
 // ---------- poke: a light static ripple from the finger + a push that shoves the face away, then springs back ----------
 struct Poke { float x, y; int a; bool on; };
 static Poke poke = {0, 0, 0, false};
-static const int POKE_LIFE = 9;
+static const int POKE_LIFE = 11;
 static float pushX = 0, pushY = 0, velX = 0, velY = 0;
 static void addPoke(float x, float y) {
   poke = {x, y, 0, true};                       // one at a time: a new tap restarts it (no pile-up)
   float dx = CX - x, dy = (EY + 2) - y, d = sqrtf(dx * dx + dy * dy); if (d < 1) { dx = 0; dy = 1; d = 1; }
-  velX += dx / d * 2.4f; velY += dy / d * 1.4f; // shove away from the finger
+  velX += dx / d * 3.4f; velY += dy / d * 2.0f; // shove away from the finger
 }
 static void tickPoke() {
   velX += -.28f * pushX; velY += -.28f * pushY; velX *= .74f; velY *= .74f; // damped spring back to centre
@@ -172,10 +173,11 @@ static void tickPoke() {
 }
 static void applyPoke() {
   if (!poke.on) return;
-  int a = poke.a; float R = a * 1.8f, band = 1.4f, dens = .55f * (1 - (float)a / POKE_LIFE);
+  int a = poke.a; float R = a * 2.2f, band = 2.0f, dens = .8f * (1 - (float)a / POKE_LIFE);
+  if (a < 1) for (int i = 0; i < W * H / 40; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; // quick crackle across the screen
   if (a < 4) { // slight shove of the rows right at the finger, outward
-    uint8_t row[W]; int cx = lroundf(poke.x), s = 3 - a;
-    for (int y = max(0, (int)poke.y - 4); y < min(H, (int)poke.y + 5); y++) {
+    uint8_t row[W]; int cx = lroundf(poke.x), s = 4 - a;
+    for (int y = max(0, (int)poke.y - 5); y < min(H, (int)poke.y + 6); y++) {
       memcpy(row, buf + y * W, W);
       for (int x = 0; x < W; x++) { int from = x > cx ? x - s : x < cx ? x + s : x; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
     }
@@ -189,13 +191,14 @@ static void applyPoke() {
 }
 
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
-static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; }
+static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; }
+static void swipeTo(int m, int dir) { setMood(m); swipeDir = dir; }
 
 static void tick() {
   f++; pf++;
   if (phase == OUT && pf >= 4) { phase = GLITCH; pf = 0; }
   else if (phase == GLITCH && pf >= 1) { phase = IN; pf = 0; }
-  else if (phase == IN && pf >= inLen(mood)) { phase = HOLD; pf = 0; }
+  else if (phase == IN && pf >= inLen(mood)) { phase = HOLD; pf = 0; swipeDir = 0; }
   const Mood &M = MOODS[mood];
   if (phase == HOLD) {
     if (M.blink && f >= blinkAt && blinkF < 0) blinkF = 0;
@@ -220,6 +223,8 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
     if (M.enter == E_ZOOM) { static const float seq[] = {.35f, .8f, 1.3f, 1.12f, 1}; sx = sy = seq[min(pf, 4)]; }
     else { static const float a[] = {.15f, .7f, 1.25f, 1.05f}, b[] = {1.12f, 1.04f, .94f, 1}; sy = a[min(pf, 3)]; sx = b[min(pf, 3)]; }
   }
+  if (swipeDir && phase == OUT) { static const float o[] = {2, 7, 15, 28}; sx = 1.06f; sy = .94f; dx = lookX + swipeDir * o[min(pf, 3)]; }
+  if (swipeDir && phase == IN) { static const float o[] = {-30, -14, -4, 2}; sx = sy = 1; dx = swipeDir * o[min(pf, 3)]; }
   if (phase == HOLD && blinkF >= 0) { static const float s[] = {1, .45f, .08f, .08f, .45f}; sy = blinkF < 5 ? s[blinkF] : 1; }
   if (phase == HOLD && M.shake > 0) { dx += jit(f) * M.shake; dy += jit(f + 1) * M.shake; }
   if (phase == HOLD && M.drift) dx += lroundf(sinf(f / 9.f) * 3);
@@ -359,6 +364,19 @@ static void homeLogic() {
   }
 }
 
+// swipe tear: rows rip sideways in the swipe direction and leave blue streaks behind
+static void applySwipeTear() {
+  float k = phase == OUT ? (pf + 1) / 4.f : phase == GLITCH ? 1.f : 1 - pf / 4.f; if (k <= 0) return;
+  uint8_t row[W];
+  for (int y = 0; y < H; y++) {
+    if (random(100) >= 40 * k) continue;
+    int s = swipeDir * (1 + random(1 + (int)(6 * k)));
+    memcpy(row, buf + y * W, W);
+    for (int x = 0; x < W; x++) { int from = x - s; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
+    for (int x = 0; x < W; x++) if (row[x] && row[x] != 3) for (int t = 1; t <= 2; t++) { int X = x + s - swipeDir * t; if (X >= 0 && X < W && !buf[y * W + X]) buf[y * W + X] = 3; }
+  }
+}
+
 static void renderFace() {
   int dm = phase == OUT ? prevMood : mood;
   memset(buf, 0, sizeof buf); MOODS[dm].draw(f);
@@ -383,6 +401,7 @@ static void renderFace() {
     }
     for (int i = 0; i < W * H / 20; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3;
   }
+  if (swipeDir && phase != HOLD) applySwipeTear();                         // swipe = sideways tear
   applyPoke();                                                             // tap = poke (static ring + push)
   if (sentF >= 0) heart(70 + sentF * .2f, 30 - sentF * 1.4f, 2.2f, 2);   // little heart floats off = sent
 }
@@ -458,7 +477,7 @@ void releaseTouch(int dx) {
     }
     if (swipe) {
       myMood = (myMood + dir + SWIPE_MOODS) % SWIPE_MOODS; showingPartner = false; reactUntil = -1;
-      setMood(myMood); lastSwipeF = f; Serial.printf("[face] swipe -> %s\n", MOODS[myMood].name);
+      swipeTo(myMood, -dir); lastSwipeF = f; Serial.printf("[face] swipe -> %s\n", MOODS[myMood].name);
     }
     // a tap keeps the current mood: the poke (ripple + push) already fired on touch-down
   }

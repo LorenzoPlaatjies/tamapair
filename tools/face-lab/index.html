@@ -129,23 +129,30 @@ let blinkAt=60,blinkF=-1,glanceAt=150,glanceF=-1,glanceDir=1,lookX=0;
 let swap=false,swapAt=0,showing="me",partnerMood="sleepy",partnerCol="#2A0E22",bg="#000000",pendingBg=null;
 let reactUntil=-1,beforeReact=null;
 /* poke: a light static ripple from the finger + a push that shoves the face away, then springs back */
-let poke=null,pushX=0,pushY=0,velX=0,velY=0;const POKE_LIFE=9;
-function addPoke(x,y){poke={x,y,a:0};let dx=CX-x,dy=EY+2-y,d=Math.hypot(dx,dy);if(d<1){dx=0;dy=1;d=1}velX+=dx/d*2.4;velY+=dy/d*1.4}
+let poke=null,pushX=0,pushY=0,velX=0,velY=0;const POKE_LIFE=11;
+function addPoke(x,y){poke={x,y,a:0};let dx=CX-x,dy=EY+2-y,d=Math.hypot(dx,dy);if(d<1){dx=0;dy=1;d=1}velX+=dx/d*3.4;velY+=dy/d*2.0}
 function tickPoke(){velX+=-.28*pushX;velY+=-.28*pushY;velX*=.74;velY*=.74;pushX+=velX;pushY+=velY;
   if(Math.abs(pushX)<.05&&Math.abs(velX)<.05)pushX=velX=0;if(Math.abs(pushY)<.05&&Math.abs(velY)<.05)pushY=velY=0;
   if(poke&&++poke.a>=POKE_LIFE)poke=null}
-function applyPoke(){if(!poke)return;const a=poke.a,R=a*1.8,band=1.4,dens=.55*(1-a/POKE_LIFE);
-  if(a<4){const cx=Math.round(poke.x),s=3-a;for(let y=Math.max(0,Math.floor(poke.y)-4);y<Math.min(H,Math.floor(poke.y)+5);y++){const row=buf.slice(y*W,(y+1)*W);
+function applyPoke(){if(!poke)return;const a=poke.a,R=a*2.2,band=2.0,dens=.8*(1-a/POKE_LIFE);
+  if(a<1)for(let i=0;i<W*H/40;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3;
+  if(a<4){const cx=Math.round(poke.x),s=4-a;for(let y=Math.max(0,Math.floor(poke.y)-5);y<Math.min(H,Math.floor(poke.y)+6);y++){const row=buf.slice(y*W,(y+1)*W);
     for(let x=0;x<W;x++){const from=x>cx?x-s:x<cx?x+s:x;buf[y*W+x]=from>=0&&from<W?row[from]:0}}}
   const lim=Math.ceil(R+band)+1;for(let y=Math.max(0,Math.floor(poke.y)-lim);y<Math.min(H,Math.floor(poke.y)+lim+1);y++)for(let x=Math.max(0,Math.floor(poke.x)-lim);x<Math.min(W,Math.floor(poke.x)+lim+1);x++){
     const d=Math.hypot(x+.5-poke.x,y+.5-poke.y);if(Math.abs(d-R)<=band&&Math.random()<dens)buf[y*W+x]=Math.random()<.85?1:3}}
 
-function setMood(m){if(m===mood&&phase==="hold")return;prev=mood;mood=m;phase="out";pf=0;render()}
+let swipeDir=0; // -1/+1 during a swipe transition (sideways tear)
+function setMood(m){if(m===mood&&phase==="hold")return;prev=mood;mood=m;phase="out";pf=0;swipeDir=0;render()}
+function swipeTo(m,dir){setMood(m);swipeDir=dir}
+function applySwipeTear(){const k=phase==="out"?(pf+1)/4:phase==="glitch"?1:1-pf/4;if(k<=0)return;
+  for(let y=0;y<H;y++){if(Math.random()*100>=40*k)continue;const s=swipeDir*(1+Math.floor(Math.random()*(1+Math.floor(6*k))));const row=buf.slice(y*W,(y+1)*W);
+    for(let x=0;x<W;x++){const from=x-s;buf[y*W+x]=from>=0&&from<W?row[from]:0}
+    for(let x=0;x<W;x++)if(row[x]&&row[x]!==3)for(let t=1;t<=2;t++){const X=x+s-swipeDir*t;if(X>=0&&X<W&&!buf[y*W+X])buf[y*W+X]=3}}}
 function tick(){
   f++;pf++;
   if(phase==="out"&&pf>=4){phase="glitch";pf=0;if(pendingBg){bg=pendingBg;pendingBg=null}}
   else if(phase==="glitch"&&pf>=1){phase="in";pf=0}
-  else if(phase==="in"&&pf>=({zoom:5,off:14}[MOODS[mood].enter]||4)){phase="hold";pf=0}
+  else if(phase==="in"&&pf>=({zoom:5,off:14}[MOODS[mood].enter]||4)){phase="hold";pf=0;swipeDir=0}
   const M=MOODS[mood];
   if(phase==="hold"){
     if(M.blink!==false&&M.blink&&f>=blinkAt&&blinkF<0){blinkF=0}
@@ -167,6 +174,8 @@ function xf(){
   if(phase==="in"){
     if(M.enter==="zoom"){const seq=[.35,.8,1.3,1.12,1];sx=sy=seq[Math.min(pf,4)]}
     else{const seq=[.15,.7,1.25,1.05];sy=seq[Math.min(pf,3)];sx=[1.12,1.04,.94,1][Math.min(pf,3)]}}
+  if(swipeDir&&phase==="out"){sx=1.06;sy=.94;dx=lookX+swipeDir*[2,7,15,28][Math.min(pf,3)]}
+  if(swipeDir&&phase==="in"){sx=sy=1;dx=swipeDir*[-30,-14,-4,2][Math.min(pf,3)]}
   if(phase==="hold"&&blinkF>=0)sy=[1,.45,.08,.08,.45][blinkF]||1;
   if(phase==="hold"&&M.shake)dx+=jit({f},M.shake),dy+=jit({f:f+1},M.shake);
   if(phase==="hold"&&M.drift)dx+=Math.round(Math.sin(f/9)*3);
@@ -198,6 +207,7 @@ function render(){
   }
   if(phase==="glitch"){for(let y=0;y<H;y+=2+Math.floor(Math.random()*5)){const sh=Math.floor(Math.random()*13)-6,h=1+Math.floor(Math.random()*4);for(let j=0;j<h&&y+j<H;j++){const row=buf.slice((y+j)*W,(y+j+1)*W);for(let x=0;x<W;x++)buf[(y+j)*W+x]=row[(x-sh+W)%W]}}
     for(let i=0;i<W*H*.05;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
+  if(swipeDir&&phase!=="hold")applySwipeTear();
   applyPoke();
   if(screenGlitch>0){screenGlitch--;for(let i=0;i<W*H/8;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
   hud();
@@ -235,7 +245,7 @@ cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY};
   if(!inSettings){const b=cv.getBoundingClientRect();addPoke((e.clientX-b.left)/b.width*W,((e.clientY-b.top)/b.height*170-OY)/S)}});
 cv.addEventListener("pointerup",e=>{if(!down)return;const dx=e.clientX-down.x;down=null;
   if(inSettings){blushOn=!blushOn;screenGlitch=1;return}
-  if(Math.abs(dx)>40){const i=ORDER.indexOf(myMood);myMood=ORDER[(i+(dx<0?1:-1)+ORDER.length)%ORDER.length];showing="me";bg="#000000";setMood(myMood);ui()}
+  if(Math.abs(dx)>40){const i=ORDER.indexOf(myMood);myMood=ORDER[(i+(dx<0?1:-1)+ORDER.length)%ORDER.length];showing="me";bg="#000000";swipeTo(myMood,dx<0?-1:1);ui()}
   /* tap keeps the current mood: the poke already fired on touch-down */});
 $("#sidebtn").addEventListener("click",()=>{inSettings=!inSettings;screenGlitch=2;$("#sidebtn").setAttribute("aria-pressed",inSettings)});
 ui();requestAnimationFrame(frame);

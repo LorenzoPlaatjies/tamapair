@@ -33,10 +33,11 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - Mood swap: my mood on black ↔ partner's mood on partner's dark tint, swapped on the glitch frame, every ~4 s.
 
 ## Touch
-- **Tap = poke, never a mood change.** On touch-down: a light ring of TV static grows from the finger (9 frames, radius = age×1.8),
-  rows right at the finger get shoved 3→1 px outward for 4 frames, and the whole face gets **pushed away from the finger**,
-  then springs back to centre (damped spring, ~1 s). One poke at a time; a new tap restarts it.
-- Swipe → next/previous mood.
+- **Tap = poke, never a mood change.** On touch-down: one frame of light crackle across the screen, a ring of TV static grows
+  from the finger (11 frames, radius = age×2.2, band 2), rows at the finger get shoved 4→1 px outward, and the whole face gets
+  **pushed away from the finger** (impulse 3.4 x / 2.0 y), then springs back (damped spring). One poke at a time.
+- **Swipe = sideways tear** (its own transition, not the squash): old face slides out in the swipe direction (2→7→15→28 px)
+  while rows rip sideways leaving blue streaks, 1 glitch frame, new face tears in from the other side (−30→−14→−4→+2→0).
 - Dropped: laugh-on-tap (looked like a chosen mood), big full-screen ripple (too much, froze on rapid taps).
 
 ## Settings (board side button = BOOT, GPIO 9)
