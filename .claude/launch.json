@@ -2,9 +2,9 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "face-picker",
-      "runtimeExecutable": "python3",
-      "runtimeArgs": ["-m", "http.server", "8765", "--directory", "tools"],
+      "name": "face-lab",
+      "runtimeExecutable": "/bin/sh",
+      "runtimeArgs": ["-c", "cd \"$HOME/Desktop/tamapair/tools\" && exec python3 -m http.server 8765"],
       "port": 8765
     }
   ]

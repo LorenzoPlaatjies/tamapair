@@ -24,3 +24,9 @@
 - Humans redesigned the screens — see PLAN "Screens v1": swipe = pick your mood, face cycles to partner's mood with partner's bg colour, last-eaten timer, double-tap → cards (Mood / Feed), food carousel, tap to send → partner munches. They're sketching it on paper next.
 - They want faces picked from the Dasai Mochi set, then redrawn by us as close as possible, animated. Picker should move to 368×448.
 - My side next: mood + food over radio/Wi-Fi (`link_send_mood`, `mood_arrived`), last-eaten clock.
+
+## 2026-11-13 — animation style from Lorenzo's reference video
+- Lorenzo had me study a retro pixel desk-pet video frame by frame (he says your picker is the better base — agreed, retro pixel stays).
+- Wrote the timing/proportion rules in **`docs/FACE_STYLE.md`** and a working demo **`tools/face-lab/`** (92×112 grid ×4 = 368×448).
+  Squash 4f → glitch 1f → pop with overshoot 4f → wobble every 2nd frame. Mood-swap demo + last-ate HUD included.
+- It's yours to turn into `face.*` — the draw functions are simple pixel ops (rect/rrect/arc/line) that port straight to the board. Change anything.

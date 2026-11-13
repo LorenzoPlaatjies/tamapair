@@ -1,0 +1,198 @@
+<!doctype html>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Mochi Face Lab</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Silkscreen&family=Nunito:wght@400;700&display=swap">
+<style>
+/* layout: the real 368x448 screen on the left, mood buttons + controls on the right. Single dark look on purpose (it's a screen lab). */
+:root{--bg:#0E0E13;--card:#18181F;--line:#2A2A35;--ink:#F1F0F5;--muted:#9896A6;--pink:#FF6F9F;--blue:#6FD3FF;
+--pix:"Silkscreen",ui-monospace,monospace;--body:"Nunito",system-ui,sans-serif;color-scheme:dark}
+*{box-sizing:border-box}
+html,body{background:var(--bg);color:var(--ink)}
+body{font:15px/1.5 var(--body);padding-left:max(16px,env(safe-area-inset-left,0px));padding-right:max(16px,env(safe-area-inset-right,0px));padding-block:20px 40px}
+.wrap{max-width:980px;margin:0 auto;display:grid;grid-template-columns:auto minmax(0,1fr);gap:28px;align-items:start}
+@media (max-width:760px){.wrap{grid-template-columns:minmax(0,1fr)}}
+.dev{background:#26232E;border-radius:44px;padding:18px;width:min(100%,404px);justify-self:center}
+#scr{display:block;width:100%;aspect-ratio:368/448;border-radius:28px;background:#000;touch-action:none;cursor:pointer;image-rendering:pixelated}
+.hint{color:var(--muted);font-size:13px;text-align:center;margin-top:10px}
+h1{font:400 26px var(--pix);margin:0 0 4px;letter-spacing:.02em}
+.sub{color:var(--muted);margin:0 0 16px;max-width:52ch}
+.sec{display:flex;flex-direction:column;gap:8px;margin-bottom:18px}
+.lab{font:400 11px var(--pix);color:var(--muted);letter-spacing:.08em}
+.moods{display:grid;grid-template-columns:repeat(auto-fill,minmax(104px,1fr));gap:8px}
+button{font:700 14px var(--body);color:var(--ink);background:var(--card);border:2px solid var(--line);border-radius:12px;padding:9px 10px;cursor:pointer}
+button[aria-pressed="true"]{border-color:var(--pink);color:#fff}
+button:focus-visible{outline:3px solid var(--blue);outline-offset:2px}
+.row{display:flex;gap:8px;flex-wrap:wrap;align-items:center}
+input[type=range]{flex:1;min-width:140px;accent-color:var(--pink)}
+.sw{width:30px;height:30px;border-radius:50%;padding:0;border:3px solid var(--line)}
+.sw[aria-pressed="true"]{border-color:#fff}
+.note{background:var(--card);border:1px solid var(--line);border-radius:14px;padding:12px 14px;color:var(--muted);font-size:14px}
+.note b{color:var(--ink)}
+</style>
+
+<div class="wrap">
+  <div>
+    <div class="dev"><canvas id="scr" width="368" height="448" aria-label="Pet screen, 368 by 448"></canvas></div>
+    <div class="hint">Tap the screen = reaction · swipe sideways = next mood</div>
+  </div>
+  <div>
+    <h1>Mochi Face Lab</h1>
+    <p class="sub">Our own faces, animated the explosive retro way: squash, snap, a one-frame glitch, then a wobbly hold. Drawn on a 92×112 pixel grid, blown up 4× to the real 368×448 screen.</p>
+
+    <div class="sec"><span class="lab">MOOD</span><div class="moods" id="moods"></div></div>
+
+    <div class="sec"><span class="lab">MOOD SWAP (MINE ↔ PARTNER'S)</span>
+      <div class="row"><button id="swap" aria-pressed="false">Start mood swap</button>
+        <span style="color:var(--muted);font-size:13px">Partner's mood:</span>
+        <select id="pmood" style="font:600 14px var(--body);background:var(--card);color:var(--ink);border:2px solid var(--line);border-radius:10px;padding:7px"></select></div>
+      <div class="row"><span style="color:var(--muted);font-size:13px">Partner colour:</span><span id="pcols" class="row"></span></div>
+    </div>
+
+    <div class="sec"><span class="lab">SPEED (SLOW IT DOWN TO SEE EACH FRAME)</span>
+      <div class="row"><input type="range" id="speed" min="0.1" max="1" step="0.05" value="1"><span id="spv" style="font:400 13px var(--pix);width:44px">1x</span><button id="pause">Pause</button><button id="step">Next frame</button></div>
+    </div>
+
+    <div class="note"><b>Timing we copied from the reference video (30 fps):</b> squash out 4 frames · 1 glitch frame · pop in 4 frames with overshoot · details wobble every 2nd frame · blink 4 frames every 2–5 s · glance eases over 8 frames, snaps back in 2.</div>
+  </div>
+</div>
+
+<script>
+/* ===== pixel grid ===== */
+const W=92,H=112,S=4;
+const COL=[null,"#F4F8FF","#FF6F9F","#6FD3FF","#8A8899"]; // 1 white, 2 pink, 3 blue, 4 grey
+let buf=new Uint8Array(W*H);
+const px=(x,y,c)=>{x|=0;y|=0;if(x>=0&&y>=0&&x<W&&y<H)buf[y*W+x]=c};
+const rect=(x,y,w,h,c)=>{for(let j=0;j<h;j++)for(let i=0;i<w;i++)px(x+i,y+j,c)};
+function rrect(cx,cy,w,h,r,c){const x0=cx-w/2,y0=cy-h/2;r=Math.min(r,w/2,h/2);
+  for(let y=Math.floor(y0);y<y0+h;y++)for(let x=Math.floor(x0);x<x0+w;x++){const X=x+.5,Y=y+.5;
+    const dx=Math.max(x0+r-X,0,X-(x0+w-r)),dy=Math.max(y0+r-Y,0,Y-(y0+h-r));if(dx*dx+dy*dy<=r*r)px(x,y,c)}}
+function ell(cx,cy,rx,ry,c){for(let y=Math.floor(cy-ry);y<=cy+ry;y++)for(let x=Math.floor(cx-rx);x<=cx+rx;x++){const a=(x+.5-cx)/rx,b=(y+.5-cy)/ry;if(a*a+b*b<=1)px(x,y,c)}}
+function ring(cx,cy,r,th,c){for(let y=Math.floor(cy-r);y<=cy+r;y++)for(let x=Math.floor(cx-r);x<=cx+r;x++){const d=Math.hypot(x+.5-cx,y+.5-cy);if(d<=r&&d>=r-th)px(x,y,c)}}
+function line(x0,y0,x1,y1,th,c){const n=Math.ceil(Math.hypot(x1-x0,y1-y0)*2)+1;for(let i=0;i<=n;i++){const t=i/n;rect(Math.round(x0+(x1-x0)*t-th/2),Math.round(y0+(y1-y0)*t-th/2),th,th,c)}}
+function arc(cx,cy,r,a0,a1,th,c){const n=Math.ceil(r*Math.abs(a1-a0)*2)+2;for(let i=0;i<=n;i++){const a=a0+(a1-a0)*i/n;rect(Math.round(cx+Math.cos(a)*r-th/2),Math.round(cy+Math.sin(a)*r-th/2),th,th,c)}}
+function heart(cx,cy,s,c){for(let y=-s*1.3;y<=s*1.3;y++)for(let x=-s*1.3;x<=s*1.3;x++){const X=x/s,Y=-y/s+.25;const v=Math.pow(X*X+Y*Y-1,3)-X*X*Y*Y*Y;if(v<=0)px(cx+x,cy+y,c)}}
+const FONT={"0":"111101101101111","1":"010110010010111","2":"111001111100111","3":"111001111001111","4":"101101111001001","5":"111100111001111","6":"111100111101111","7":"111001001001001","8":"111101111101111","9":"111101111001111","h":"100100111101101","m":"000111111101101","z":"111001010100111","Z":"111001010100111"};
+function text(s,x,y,c,sc=1){for(const ch of s){const g=FONT[ch];if(g)for(let j=0;j<5;j++)for(let i=0;i<3;i++)if(g[j*3+i]==="1")rect(x+i*sc,y+j*sc,sc,sc,c);x+=4*sc}}
+
+/* ===== face geometry (proportions measured from the reference) ===== */
+const EY=46, EL=25, ER=67, EW=16, EH=24, MY=59; // eye centre y, left/right eye x, eye size, mouth y
+const smile=(c=1)=>arc(46,MY-4,5,Math.PI*.18,Math.PI*.82,2,c);
+const jit=(k,a=1)=>((k.f>>1)%2?a:-a); // wobble every 2nd frame
+
+const MOODS={
+ idle:{name:"Idle",blink:true,glance:true,draw(k){rrect(EL,EY,EW,EH,6,1);rrect(ER,EY,EW,EH,6,1);smile()}},
+ happy:{name:"Happy",draw(k){arc(EL,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);arc(ER,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);ell(46,MY-1,5,4,1);rect(41,MY-5,11,4,0)}},
+ laugh:{name:"Laugh",shake:1,draw(k){line(17,38,31,EY,3,1);line(17,54,31,EY,3,1);line(75,38,61,EY,3,1);line(75,54,61,EY,3,1);
+   ell(46,MY+1,9,8,1);rect(36,MY-8,21,8,0);ell(46,MY+5,5,3,2)}},
+ yum:{name:"Yum",draw(k){arc(EL,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);arc(ER,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);
+   smile();const w=jit(k,1);ell(46+w,MY+4,4,4,2);px(46+w,MY+3,1)}},
+ love:{name:"Love",draw(k){const beat=(k.f%15)<3?1.25:1;heart(EL,EY,7*beat,2);heart(ER,EY,7*beat,2);smile()}},
+ sleepy:{name:"Sleepy",blink:false,draw(k){const b=Math.round(Math.sin(k.t*1.6));rect(EL-8,EY+6+b,16,3,1);rect(ER-8,EY+6+b,16,3,1);ell(46,MY+2,2,2,1);
+   const z=Math.floor(k.f/8)%4;for(let i=0;i<=z&&i<3;i++)text("z",70+i*5,26-i*7,4,i?1:1)}},
+ sad:{name:"Sad",blink:true,draw(k){rrect(EL,EY+2,EW,EH-4,6,1);rrect(ER,EY+2,EW,EH-4,6,1);
+   for(let i=0;i<9;i++){rect(EL-8,EY-11+i,9-i,1,0);rect(ER-1+i,EY-11+i,9-i,1,0)}
+   arc(46,MY+5,5,Math.PI*1.2,Math.PI*1.8,2,1);const d=(k.f%24);ell(EL-4,EY+12+d,1.6,2.2,3)}},
+ angry:{name:"Grumpy",shake:.5,blink:true,draw(k){rrect(EL,EY+2,EW,EH-4,6,1);rrect(ER,EY+2,EW,EH-4,6,1);
+   for(let i=0;i<9;i++){rect(EL-1+i,EY-11+i,9-i,1,0);rect(ER-8,EY-11+i,9-i,1,0)}
+   line(39,MY,42,MY-2,2,1);line(42,MY-2,46,MY,2,1);line(46,MY,50,MY-2,2,1);line(50,MY-2,53,MY,2,1);
+   if((k.f>>2)%2){rect(78,20,2,6,2);rect(76,22,6,2,2)}}},
+ surprised:{name:"Surprised",enter:"zoom",blink:true,draw(k){ring(EL,EY,10,3,1);ring(ER,EY,10,3,1);rect(EL-2,EY-2,4,4,1);rect(ER-2,EY-2,4,4,1);ell(46,MY+2,3,4,1)}},
+ dizzy:{name:"Dizzy",draw(k){for(const [cx,dir] of [[EL,1],[ER,-1]]){for(let a=0;a<Math.PI*4.5;a+=.12){const r=1+a*1.25,aa=dir*(a+k.t*7);px(Math.round(cx+Math.cos(aa)*r),Math.round(EY+Math.sin(aa)*r),1)}}
+   for(let i=0;i<6;i++)line(36+i*4,MY+(i%2?-2:1),40+i*4,MY+(i%2?1:-2),2,1)},drift:true},
+ munch:{name:"Munch",draw(k){arc(EL,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);arc(ER,EY+5,8,Math.PI*1.1,Math.PI*1.9,3,1);
+   const open=(k.f>>2)%2;if(open){rrect(46,MY+1,12,8,3,1);rect(42,MY+1,8,3,2)}else rect(40,MY,12,2,1);
+   if(open){px(56+(k.f%6),MY-2-(k.f%5),4);px(35-(k.f%5),MY-1-(k.f%4),4)}}},
+ hype:{name:"Hype!",enter:"zoom",shake:1,draw(k){for(let y=0;y<44;y++){const w=18+Math.round(y*.18);rect(6,EY-22+y,w,1,1);rect(86-w,EY-22+y,w,1,1)}smile()}}
+};
+const ORDER=Object.keys(MOODS);
+
+/* ===== animation state ===== */
+let mood="idle",prev=null,phase="hold",pf=0,f=0,acc=0,last=0,paused=false,speed=1;
+let blinkAt=60,blinkF=-1,glanceAt=150,glanceF=-1,glanceDir=1,lookX=0;
+let swap=false,swapAt=0,showing="me",partnerMood="sleepy",partnerCol="#2A0E22",bg="#000000",pendingBg=null;
+let reactUntil=-1,beforeReact=null;
+
+function setMood(m){if(m===mood&&phase==="hold")return;prev=mood;mood=m;phase="out";pf=0;render()}
+function tick(){
+  f++;pf++;
+  if(phase==="out"&&pf>=4){phase="glitch";pf=0;if(pendingBg){bg=pendingBg;pendingBg=null}}
+  else if(phase==="glitch"&&pf>=1){phase="in";pf=0}
+  else if(phase==="in"&&pf>=(MOODS[mood].enter==="zoom"?5:4)){phase="hold";pf=0}
+  const M=MOODS[mood];
+  if(phase==="hold"){
+    if(M.blink!==false&&M.blink&&f>=blinkAt&&blinkF<0){blinkF=0}
+    if(blinkF>=0&&++blinkF>4){blinkF=-1;blinkAt=f+60+Math.floor(Math.random()*90)}
+    if(M.glance&&f>=glanceAt&&glanceF<0){glanceF=0;glanceDir=Math.random()<.5?-1:1}
+    if(glanceF>=0){glanceF++;if(glanceF<=8){const e=1-Math.pow(1-glanceF/8,3);lookX=glanceDir*6*e}else if(glanceF<=33){lookX=glanceDir*6}else if(glanceF<=35){lookX=glanceDir*6*(1-(glanceF-33)/2)}else{lookX=0;glanceF=-1;glanceAt=f+120+Math.floor(Math.random()*120)}}
+  }
+  if(reactUntil>0&&f>=reactUntil){reactUntil=-1;setMood(beforeReact)}
+  if(swap&&phase==="hold"&&f>=swapAt){showing=showing==="me"?"partner":"me";const target=showing==="me"?myMood:partnerMood;pendingBg=showing==="me"?"#000000":partnerCol;
+    swapAt=f+120;if(target===mood){bg=pendingBg;pendingBg=null}else setMood(target)}
+}
+let myMood="idle";
+
+/* transform for the current frame */
+function xf(){
+  const M=MOODS[mood];let sx=1,sy=1,dx=lookX,dy=0;
+  if(phase==="out"){const t=pf/4;sy=1-t*.92;sx=1+t*.12}
+  if(phase==="in"){
+    if(M.enter==="zoom"){const seq=[.35,.8,1.3,1.12,1];sx=sy=seq[Math.min(pf,4)]}
+    else{const seq=[.15,.7,1.25,1.05];sy=seq[Math.min(pf,3)];sx=[1.12,1.04,.94,1][Math.min(pf,3)]}}
+  if(phase==="hold"&&blinkF>=0)sy=[1,.45,.08,.08,.45][blinkF]||1;
+  if(phase==="hold"&&M.shake)dx+=jit({f},M.shake),dy+=jit({f:f+1},M.shake);
+  if(phase==="hold"&&M.drift)dx+=Math.round(Math.sin(f/9)*3);
+  return {sx,sy,dx,dy};
+}
+
+/* ===== render ===== */
+const cv=document.getElementById("scr"),c=cv.getContext("2d");
+let tmp=new Uint8Array(W*H);
+function render(){
+  const drawMood=phase==="out"?prev||mood:mood,k={f,t:f/30};
+  buf.fill(0);MOODS[drawMood].draw(k);tmp.set(buf);buf.fill(0);
+  const BASE=1.4;let {sx,sy,dx,dy}=xf();sx*=BASE;sy*=BASE;const ox=46,oy=EY+4;
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const X=Math.round((x-ox-dx)/sx+ox),Y=Math.round((y-oy-dy)/sy+oy);if(X>=0&&Y>=0&&X<W&&Y<H&&tmp[Y*W+X])buf[y*W+x]=tmp[Y*W+X]}
+  if(phase==="glitch"){for(let y=0;y<H;y+=2+Math.floor(Math.random()*5)){const sh=Math.floor(Math.random()*13)-6,h=1+Math.floor(Math.random()*4);for(let j=0;j<h&&y+j<H;j++){const row=buf.slice((y+j)*W,(y+j+1)*W);for(let x=0;x<W;x++)buf[(y+j)*W+x]=row[(x-sh+W)%W]}}
+    for(let i=0;i<W*H*.05;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
+  hud();
+  c.fillStyle=bg;c.fillRect(0,0,368,448);
+  for(let y=0;y<H;y++)for(let x=0;x<W;x++){const v=buf[y*W+x];if(!v)continue;c.fillStyle=COL[v];c.fillRect(x*S,y*S,S,S)}
+}
+function hud(){
+  rect(4,4,3,3,4); // settings dot
+  rect(70,5,5,1,1);rect(69,6,7,4,1);rect(71,8,3,2,4); // tiny rice ball
+  text("2h",79,5,1);
+  if(swap){const who=showing==="me"?"me":"you";rect(43,100,6,2,showing==="me"?1:2)}
+}
+
+/* ===== loop ===== */
+function frame(ts){
+  if(!last)last=ts;const dt=Math.min(100,ts-last);last=ts;
+  if(!paused){acc+=dt*speed;while(acc>=1000/30){acc-=1000/30;tick()}}
+  render();requestAnimationFrame(frame);
+}
+
+/* ===== UI ===== */
+const $=s=>document.querySelector(s);
+const host=$("#moods"),pm=$("#pmood");
+ORDER.forEach(id=>{const b=document.createElement("button");b.textContent=MOODS[id].name;b.dataset.id=id;b.addEventListener("click",()=>{myMood=id;showing="me";bg="#000000";setMood(id);ui()});host.appendChild(b);
+  const o=document.createElement("option");o.value=id;o.textContent=MOODS[id].name;pm.appendChild(o)});
+pm.value=partnerMood;pm.addEventListener("change",()=>partnerMood=pm.value);
+[["#2A0E22","Pink"],["#0B1F33","Blue"],["#0E2A1B","Green"],["#2A230A","Gold"]].forEach(([v,n])=>{const b=document.createElement("button");b.className="sw";b.style.background=v.replace(/^#(..)(..)(..)$/,(m,r,g,bb)=>"#"+[r,g,bb].map(h=>Math.min(255,parseInt(h,16)*4).toString(16).padStart(2,"0")).join(""));b.title=n;b.setAttribute("aria-label",n);b.dataset.v=v;b.addEventListener("click",()=>{partnerCol=v;if(showing==="partner")bg=v;ui()});$("#pcols").appendChild(b)});
+$("#swap").addEventListener("click",()=>{swap=!swap;swapAt=f+60;if(!swap){showing="me";bg="#000000";setMood(myMood)}ui()});
+$("#speed").addEventListener("input",e=>{speed=+e.target.value;$("#spv").textContent=speed.toFixed(2).replace(/\.?0+$/,"")+"x"});
+$("#pause").addEventListener("click",()=>{paused=!paused;ui()});
+$("#step").addEventListener("click",()=>{paused=true;tick();ui()});
+function ui(){document.querySelectorAll("#moods button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.id===myMood));
+  document.querySelectorAll("#pcols button").forEach(b=>b.setAttribute("aria-pressed",b.dataset.v===partnerCol));
+  $("#swap").setAttribute("aria-pressed",swap);$("#swap").textContent=swap?"Stop mood swap":"Start mood swap";$("#pause").textContent=paused?"Play":"Pause"}
+/* tap = reaction, swipe = next mood */
+let down=null;
+cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY}});
+cv.addEventListener("pointerup",e=>{if(!down)return;const dx=e.clientX-down.x;down=null;
+  if(Math.abs(dx)>40){const i=ORDER.indexOf(myMood);myMood=ORDER[(i+(dx<0?1:-1)+ORDER.length)%ORDER.length];showing="me";bg="#000000";setMood(myMood);ui()}
+  else{beforeReact=mood==="laugh"?myMood:mood;setMood("laugh");reactUntil=f+60}});
+ui();requestAnimationFrame(frame);
+</script>
