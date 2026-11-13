@@ -34,7 +34,7 @@ input[type=range]{flex:1;min-width:140px;accent-color:var(--pink)}
 <div class="wrap">
   <div>
     <div class="dev"><canvas id="scr" width="320" height="170" aria-label="Pet screen, 320 by 170"></canvas></div>
-    <div class="hint">Tap = spark + laugh · swipe sideways = next mood · side button = settings</div>
+    <div class="hint">Tap = static ripple that pushes the face away · swipe sideways = next mood · side button = settings</div>
   </div>
   <div>
     <h1>Mochi Face Lab</h1>
@@ -128,6 +128,17 @@ let mood="idle",prev=null,phase="hold",pf=0,f=0,acc=0,last=0,paused=false,speed=
 let blinkAt=60,blinkF=-1,glanceAt=150,glanceF=-1,glanceDir=1,lookX=0;
 let swap=false,swapAt=0,showing="me",partnerMood="sleepy",partnerCol="#2A0E22",bg="#000000",pendingBg=null;
 let reactUntil=-1,beforeReact=null;
+/* poke: a light static ripple from the finger + a push that shoves the face away, then springs back */
+let poke=null,pushX=0,pushY=0,velX=0,velY=0;const POKE_LIFE=9;
+function addPoke(x,y){poke={x,y,a:0};let dx=CX-x,dy=EY+2-y,d=Math.hypot(dx,dy);if(d<1){dx=0;dy=1;d=1}velX+=dx/d*2.4;velY+=dy/d*1.4}
+function tickPoke(){velX+=-.28*pushX;velY+=-.28*pushY;velX*=.74;velY*=.74;pushX+=velX;pushY+=velY;
+  if(Math.abs(pushX)<.05&&Math.abs(velX)<.05)pushX=velX=0;if(Math.abs(pushY)<.05&&Math.abs(velY)<.05)pushY=velY=0;
+  if(poke&&++poke.a>=POKE_LIFE)poke=null}
+function applyPoke(){if(!poke)return;const a=poke.a,R=a*1.8,band=1.4,dens=.55*(1-a/POKE_LIFE);
+  if(a<4){const cx=Math.round(poke.x),s=3-a;for(let y=Math.max(0,Math.floor(poke.y)-4);y<Math.min(H,Math.floor(poke.y)+5);y++){const row=buf.slice(y*W,(y+1)*W);
+    for(let x=0;x<W;x++){const from=x>cx?x-s:x<cx?x+s:x;buf[y*W+x]=from>=0&&from<W?row[from]:0}}}
+  const lim=Math.ceil(R+band)+1;for(let y=Math.max(0,Math.floor(poke.y)-lim);y<Math.min(H,Math.floor(poke.y)+lim+1);y++)for(let x=Math.max(0,Math.floor(poke.x)-lim);x<Math.min(W,Math.floor(poke.x)+lim+1);x++){
+    const d=Math.hypot(x+.5-poke.x,y+.5-poke.y);if(Math.abs(d-R)<=band&&Math.random()<dens)buf[y*W+x]=Math.random()<.85?1:3}}
 
 function setMood(m){if(m===mood&&phase==="hold")return;prev=mood;mood=m;phase="out";pf=0;render()}
 function tick(){
@@ -143,6 +154,7 @@ function tick(){
     if(glanceF>=0){glanceF++;if(glanceF<=8){const e=1-Math.pow(1-glanceF/8,3);lookX=glanceDir*5*e}else if(glanceF<=33){lookX=glanceDir*5}else if(glanceF<=35){lookX=glanceDir*5*(1-(glanceF-33)/2)}else{lookX=0;glanceF=-1;glanceAt=f+120+Math.floor(Math.random()*120)}}
   }
   if(reactUntil>0&&f>=reactUntil){reactUntil=-1;setMood(beforeReact)}
+  tickPoke();
   if(swap&&phase==="hold"&&f>=swapAt){showing=showing==="me"?"partner":"me";const target=showing==="me"?myMood:partnerMood;pendingBg=showing==="me"?"#000000":partnerCol;
     swapAt=f+120;if(target===mood){bg=pendingBg;pendingBg=null}else setMood(target)}
 }
@@ -158,6 +170,7 @@ function xf(){
   if(phase==="hold"&&blinkF>=0)sy=[1,.45,.08,.08,.45][blinkF]||1;
   if(phase==="hold"&&M.shake)dx+=jit({f},M.shake),dy+=jit({f:f+1},M.shake);
   if(phase==="hold"&&M.drift)dx+=Math.round(Math.sin(f/9)*3);
+  dx+=pushX;dy+=pushY;
   return {sx,sy,dx,dy};
 }
 
@@ -185,6 +198,7 @@ function render(){
   }
   if(phase==="glitch"){for(let y=0;y<H;y+=2+Math.floor(Math.random()*5)){const sh=Math.floor(Math.random()*13)-6,h=1+Math.floor(Math.random()*4);for(let j=0;j<h&&y+j<H;j++){const row=buf.slice((y+j)*W,(y+j+1)*W);for(let x=0;x<W;x++)buf[(y+j)*W+x]=row[(x-sh+W)%W]}}
     for(let i=0;i<W*H*.05;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
+  applyPoke();
   if(screenGlitch>0){screenGlitch--;for(let i=0;i<W*H/8;i++)buf[Math.floor(Math.random()*W*H)]=Math.random()<.85?1:3}
   hud();
   c.fillStyle=bg;c.fillRect(0,0,320,170);
@@ -217,12 +231,12 @@ function ui(){document.querySelectorAll("#moods button").forEach(b=>b.setAttribu
   $("#swap").setAttribute("aria-pressed",swap);$("#swap").textContent=swap?"Stop mood swap":"Start mood swap";$("#pause").textContent=paused?"Play":"Pause"}
 /* tap = reaction, swipe = next mood */
 let down=null;
-cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY}});
+cv.addEventListener("pointerdown",e=>{down={x:e.clientX,y:e.clientY};
+  if(!inSettings){const b=cv.getBoundingClientRect();addPoke((e.clientX-b.left)/b.width*W,((e.clientY-b.top)/b.height*170-OY)/S)}});
 cv.addEventListener("pointerup",e=>{if(!down)return;const dx=e.clientX-down.x;down=null;
   if(inSettings){blushOn=!blushOn;screenGlitch=1;return}
   if(Math.abs(dx)>40){const i=ORDER.indexOf(myMood);myMood=ORDER[(i+(dx<0?1:-1)+ORDER.length)%ORDER.length];showing="me";bg="#000000";setMood(myMood);ui()}
-  else{beforeReact=myMood; // every tap sparks: re-fire the glitch burst + pop even if already laughing
-    if(mood==="laugh"){if(phase==="hold"){prev="laugh";phase="glitch";pf=0}}else setMood("laugh");reactUntil=f+60}});
+  /* tap keeps the current mood: the poke already fired on touch-down */});
 $("#sidebtn").addEventListener("click",()=>{inSettings=!inSettings;screenGlitch=2;$("#sidebtn").setAttribute("aria-pressed",inSettings)});
 ui();requestAnimationFrame(frame);
 </script>

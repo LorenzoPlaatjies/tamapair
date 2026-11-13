@@ -70,3 +70,7 @@
 - Ripple removed (too much, and rapid taps froze the board). Tap = just the glitch spark + laugh; repeat taps re-fire only after the last spark finishes. Added `Wire.setTimeOut(20)`.
 - **Side button (BOOT, GPIO 9) → settings screen**: "BLUSH" + mini face + ON/OFF switch, tap toggles. Saved in NVS (`Preferences`, namespace "tamapair", key "blush"). Your `BLUSH` const is now `blushOn`.
 - Same in `tools/face-lab/` (a "Press side button" control). Flashed on my board.
+
+## 2026-11-13 — tap = poke (humans' call)
+- No more laugh on tap. Tap = light static ring at the finger + the face gets pushed away from the finger and springs back. Mood never changes on tap.
+- Code: `addPoke/tickPoke/applyPoke` in facelab.ino (+ twin in tools/face-lab). Spec in FACE_STYLE.md → Touch. Flashed on my board.

@@ -152,6 +152,41 @@ static int blinkAt = 60, blinkF = -1, glanceAt = 150, glanceF = -1, glanceDir = 
 static float lookX = 0;
 static int reactUntil = -1, beforeReact = 0;
 
+// ---------- poke: a light static ripple from the finger + a push that shoves the face away, then springs back ----------
+struct Poke { float x, y; int a; bool on; };
+static Poke poke = {0, 0, 0, false};
+static const int POKE_LIFE = 9;
+static float pushX = 0, pushY = 0, velX = 0, velY = 0;
+static void addPoke(float x, float y) {
+  poke = {x, y, 0, true};                       // one at a time: a new tap restarts it (no pile-up)
+  float dx = CX - x, dy = (EY + 2) - y, d = sqrtf(dx * dx + dy * dy); if (d < 1) { dx = 0; dy = 1; d = 1; }
+  velX += dx / d * 2.4f; velY += dy / d * 1.4f; // shove away from the finger
+}
+static void tickPoke() {
+  velX += -.28f * pushX; velY += -.28f * pushY; velX *= .74f; velY *= .74f; // damped spring back to centre
+  pushX += velX; pushY += velY;
+  if (fabsf(pushX) < .05f && fabsf(velX) < .05f) pushX = velX = 0;
+  if (fabsf(pushY) < .05f && fabsf(velY) < .05f) pushY = velY = 0;
+  if (poke.on && ++poke.a >= POKE_LIFE) poke.on = false;
+}
+static void applyPoke() {
+  if (!poke.on) return;
+  int a = poke.a; float R = a * 1.8f, band = 1.4f, dens = .55f * (1 - (float)a / POKE_LIFE);
+  if (a < 4) { // slight shove of the rows right at the finger, outward
+    uint8_t row[W]; int cx = lroundf(poke.x), s = 3 - a;
+    for (int y = max(0, (int)poke.y - 4); y < min(H, (int)poke.y + 5); y++) {
+      memcpy(row, buf + y * W, W);
+      for (int x = 0; x < W; x++) { int from = x > cx ? x - s : x < cx ? x + s : x; buf[y * W + x] = (from >= 0 && from < W) ? row[from] : 0; }
+    }
+  }
+  float lo = R - band, hi = R + band, lo2 = lo > 0 ? lo * lo : 0, hi2 = hi * hi; int lim = (int)ceilf(hi) + 1;
+  for (int y = max(0, (int)poke.y - lim); y < min(H, (int)poke.y + lim + 1); y++)
+    for (int x = max(0, (int)poke.x - lim); x < min(W, (int)poke.x + lim + 1); x++) {
+      float ddx = x + .5f - poke.x, ddy = y + .5f - poke.y, d2 = ddx * ddx + ddy * ddy;
+      if (d2 >= lo2 && d2 <= hi2 && random(100) < dens * 100) buf[y * W + x] = random(100) < 85 ? 1 : 3;
+    }
+}
+
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
 static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; }
 
@@ -174,6 +209,7 @@ static void tick() {
     }
   }
   if (reactUntil > 0 && f >= reactUntil) { reactUntil = -1; setMood(beforeReact); }
+  tickPoke();
 }
 
 static void xf(float &sx, float &sy, float &dx, float &dy) {
@@ -186,6 +222,7 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
   if (phase == HOLD && blinkF >= 0) { static const float s[] = {1, .45f, .08f, .08f, .45f}; sy = blinkF < 5 ? s[blinkF] : 1; }
   if (phase == HOLD && M.shake > 0) { dx += jit(f) * M.shake; dy += jit(f + 1) * M.shake; }
   if (phase == HOLD && M.drift) dx += lroundf(sinf(f / 9.f) * 3);
+  dx += pushX; dy += pushY; // poke push
 }
 
 // ---------- settings screen (side button) ----------
@@ -241,6 +278,7 @@ static void renderFrame() {
     }
     for (int i = 0; i < W * H / 20; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3;
   }
+  applyPoke();
   } // !inSettings
   if (screenGlitch > 0) { screenGlitch--; for (int i = 0; i < W * H / 8; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; }
   // grid -> 320x170 RGB565 framebuffer, one push per frame
@@ -281,17 +319,13 @@ static bool down = false; static int downX = 0, lastX = 0; static uint32_t downA
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); }
+  if (t && !down) { down = true; downX = lastX = x; downAt = millis(); if (!inSettings) addPoke(x / (float)S, (y - OY) / (float)S); }
   else if (t) lastX = x;
   else if (!t && down) {
     down = false; int dx = lastX - downX;
     if (inSettings) { blushOn = !blushOn; prefs.putBool("blush", blushOn); screenGlitch = 1; Serial.printf("[face] blush %s\n", blushOn ? "on" : "off"); return; }
     if (abs(dx) > 40) { myMood = (myMood + (dx < 0 ? 1 : -1) + NMOODS) % NMOODS; setMood(myMood); Serial.printf("[face] swipe -> %s\n", MOODS[myMood].name); }
-    else { // every tap sparks: if already laughing, re-fire the glitch burst + pop (but not mid-spark, so rapid taps can't pile up)
-      beforeReact = myMood;
-      if (mood == LAUGH) { if (phase == HOLD) { prevMood = LAUGH; phase = GLITCH; pf = 0; } } else setMood(LAUGH);
-      reactUntil = f + 60; Serial.println("[face] tap -> laugh");
-    }
+    // a tap keeps the current mood: the poke (ripple + push) already fired on touch-down
   }
 }
 
