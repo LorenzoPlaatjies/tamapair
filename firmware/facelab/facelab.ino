@@ -114,6 +114,16 @@ static void dOffline(int f) {
   if ((f % 40) < 3) { px(57 + g, 33, 3); px(58 + g, 40, 3); }
 }
 
+// Pink cheeks under the eyes (Dr. Smith's pick). Only fills empty pixels, so it never covers eyes or mouth.
+static const bool BLUSH = true;
+static void blush() {   // two 10x3 pills with clipped corners, one row below the eyes
+  for (int e = 0; e < 2; e++) for (int y = 0; y < 3; y++) for (int x = 0; x < 10; x++) {
+    if ((y != 1) && (x == 0 || x == 9)) continue;
+    int X = e ? 59 + x : 11 + x, Y = 30 + y;
+    if (!buf[Y * W + X]) buf[Y * W + X] = 2;
+  }
+}
+
 static const Mood MOODS[] = {
   {"idle", true, true, 0, false, E_SQUASH, dIdle},
   {"happy", false, false, 0, false, E_SQUASH, dHappy},
@@ -178,7 +188,9 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
 
 static void renderFrame() {
   int dm = phase == OUT ? prevMood : mood;
-  memset(buf, 0, sizeof buf); MOODS[dm].draw(f); memcpy(tmp, buf, sizeof buf); memset(buf, 0, sizeof buf);
+  memset(buf, 0, sizeof buf); MOODS[dm].draw(f);
+  if (BLUSH && MOODS[dm].enter != E_OFF) blush();
+  memcpy(tmp, buf, sizeof buf); memset(buf, 0, sizeof buf);
   float sx, sy, dx, dy; xf(sx, sy, dx, dy);
   const float ox = CX, oy = EY + 2;
   for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
