@@ -1,8 +1,10 @@
 {
   "people": {
     "Lorenzo": {
-      "faces": [],
-      "blush": "on",
+      "faces": [
+        "idle"
+      ],
+      "blush": "off",
       "eye": "#ffffff",
       "style": "retro"
     },
