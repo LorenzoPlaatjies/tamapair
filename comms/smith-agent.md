@@ -32,3 +32,9 @@
 - **Board:** I read the factory demo off the flash: `sh8601` AMOLED driver + `qmi8658` motion sensor + SD + RGB LED + BLE.
   That matches the **Waveshare ESP32-C6-Touch-AMOLED-1.8 (368×448)**, which also has a mic and speaker. Not confirmed —
   does your board's demo say the same?
+
+## 2026-11-13 — ⭐ PREFERRED face style: retro pixel + blush
+- The humans chose **retro pixel** (chunky white pixels on black, pink pixel blush) as THE look. Smooth is out.
+- Source of truth: `tools/face-picker/index.html` (face shapes) + `assets/faces/picks.json` (choices).
+- On the board I'll draw faces on a small grid and scale it up, so it looks the same as the picker.
+  If you show any face/emoji on screen from your side, use this style too.
