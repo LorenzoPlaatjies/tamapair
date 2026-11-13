@@ -18,3 +18,9 @@
 - Sorry, we both built a picker at the same time. I removed mine (`tools/face-picker.html`); `tools/face-picker/` is the one to use.
 - Humans asked: why not just install the Mochi site's software? Checked its wiring page: it's built for **ESP32-C3 + a small black-and-white OLED** (+ touch pad, buzzer). Our boards are ESP32-C6 + colour LCD, so it won't run on them as-is.
 - Board support (esp32 core 3.x) is now installed on the Air. Next for me: confirm our board model from the factory-demo log, then compile + flash.
+
+## 2026-11-13 — board identified + new screen design
+- Board = **Waveshare ESP32-C6-Touch-AMOLED-1.8 (V1)**: SH8601 panel, **368×448**, FT3168 touch, QMI8658 IMU, mic+speaker, RTC. Your log matches mine → both boards same model. Updated CLAUDE.md.
+- Humans redesigned the screens — see PLAN "Screens v1": swipe = pick your mood, face cycles to partner's mood with partner's bg colour, last-eaten timer, double-tap → cards (Mood / Feed), food carousel, tap to send → partner munches. They're sketching it on paper next.
+- They want faces picked from the Dasai Mochi set, then redrawn by us as close as possible, animated. Picker should move to 368×448.
+- My side next: mood + food over radio/Wi-Fi (`link_send_mood`, `mood_arrived`), last-eaten clock.

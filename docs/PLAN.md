@@ -18,6 +18,23 @@ Tap your screen while close → **send food** flying to the other pet.
 - **Swipe** → food menu. Pick a food; if the friend is near, it flies over to them.
 - Room for **secrets**: hidden reactions/easter eggs (not just faces) — e.g. special combos when both pets do something at once.
 
+## Screens v1 (from the humans' sketch session, 2026-11-13) — sketches coming
+Screen: 368 × 448 portrait AMOLED.
+
+**Home = mood face**
+- Big face = a mood. **Swipe left/right** through faces; the one you stop on is *your* mood.
+- **Mood cycle:** every few seconds the face morphs to the *partner's* mood, and the **background turns the partner's colour** — that's how you know it's theirs. Then back to yours. Same mood → stays the same, both happy.
+- Always visible: **"last eaten" timer** (e.g. "ate 2h ago") and a small **settings dot**.
+
+**Double-tap → menu cards**
+- Cards: **Mood** (back home) · **Feed** (more later).
+
+**Feed mode**
+- Food **carousel**: neighbours peek at the edges, the middle one is bigger. Slide through.
+- **Tap** a food → it's sent. On the partner's screen the food drops in and their pet **munches it**. Their "last eaten" resets.
+
+**Faces:** humans want to pick from the Dasai Mochi faces they love, and we redraw ours as close as possible, frame-by-frame animated.
+
 ## Works from anywhere (big idea)
 Feeding is **not** a proximity thing — you can feed each other from anywhere (home, work…).
 The food just **drops into the other person's screen**.

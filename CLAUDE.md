@@ -21,7 +21,10 @@ Dasai Mochi gadget, so use it as **style inspiration** — draw our own faces in
 Controls: tap = pet reacts, swipe = food menu. A face is always visible, even during jam/proximity effects.
 
 ## Hardware
-- Board: Waveshare ESP32-C6 touch LCD (chip ESP32-C6FH8, 8MB flash, USB-Serial/JTAG). Exact screen model TBC from a photo.
+- Board: **Waveshare ESP32-C6-Touch-AMOLED-1.8 (V1)** — confirmed from boot log (SH8601 panel, QMI8658 IMU, SD slot).
+  Screen **368 × 448** AMOLED (portrait), QSPI. Touch FT3168 (I2C). Also: IMU (shake → dizzy), RTC, mic + speaker, SD card.
+  Docs: https://docs.waveshare.com/ESP32-C6-Touch-AMOLED-1.8
+- Design all screens at 368×448. AMOLED: pure black pixels are off → black backgrounds look great and save power.
 - Extras on the table: photoresistor (light sensor), CP2102 USB-C dev boards, jumper wires, NFC sticker tags (C6 can't read NFC itself — phone-tap idea only).
 
 ## Build
