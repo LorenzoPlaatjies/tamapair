@@ -1,14 +1,16 @@
-// Draw each face at 240x180, squash it to a 60x45 grid (like the picker), then blow each cell up to 6x6.
+// Draw each face at 240x180, then fill the whole screen with 4x4 "big pixels" sampled from it (retro look).
 #include "face.h"
 
 static const int W = 240, H = 180, EYE_LX = 82, EYE_RX = 158, EY = 78;
-static const int GW = 60, GH = 45, CELL = 6;
+static const int CELL = 4;
+static int GW, GH;            // big-pixel grid that covers the screen
+static float S, DX, DY;       // canvas → screen: screen = canvas * S + D
 
 static Arduino_GFX *scr;
 static Arduino_Canvas *cv;      // 240x180 drawing surface (never shown directly)
 static uint16_t *fb;
-static uint16_t rowbuf[GW * CELL * CELL];
-static int16_t OX, OY;
+static uint16_t *rowbuf;
+static int16_t *colX, *rowY;  // canvas x for each screen column, canvas y for each screen row (-1 = off canvas)
 
 static uint16_t rgb(uint8_t r, uint8_t g, uint8_t b) { return ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3); }
 static const uint16_t BLK = 0x0000, WHT = 0xFFFF;
@@ -140,8 +142,17 @@ static void extra(uint8_t t) {
   }
 }
 
-bool face_begin(Arduino_GFX *screen, int16_t ox, int16_t oy) {
-  scr = screen; OX = ox; OY = oy;
+bool face_begin(Arduino_GFX *screen, int16_t sw, int16_t sh) {
+  scr = screen;
+  GW = sw / CELL; GH = sh / CELL;
+  // face content lives in canvas y≈8..162 and x≈0..240: fit its height to the screen, centre it
+  S = (float)(GH * CELL) / 150.0f;
+  DX = (GW * CELL - W * S) / 2;
+  DY = -9 * S;
+  rowbuf = (uint16_t *)malloc(GW * CELL * CELL * 2);
+  colX = (int16_t *)malloc(GW * CELL * 2); rowY = (int16_t *)malloc(GH * CELL * 2);
+  for (int i = 0; i < GW * CELL; i++) { int v = (int)((i + 0.5f - DX) / S); colX[i] = (v >= 0 && v < W) ? v : -1; }
+  for (int i = 0; i < GH * CELL; i++) { int v = (int)((i + 0.5f - DY) / S); rowY[i] = (v >= 0 && v < H) ? v : -1; }
   PINK = rgb(0xff, 0x7f, 0x9f); HEART = rgb(0xff, 0x5c, 0x8a); GOLD = rgb(0xff, 0xd1, 0x66);
   BLUE = rgb(0x7c, 0xc7, 0xff); TONGUE = rgb(0xff, 0x7a, 0xa2); GREY = rgb(0x9a, 0x98, 0xa3);
   RED = rgb(0xff, 0x5c, 0x5c); CRUMB = rgb(0xd9, 0xa1, 0x5b);
@@ -151,16 +162,17 @@ bool face_begin(Arduino_GFX *screen, int16_t ox, int16_t oy) {
   return true;
 }
 
-// Squash one 4x4 block to a single cell colour (or black), like the picker's 35% coverage rule.
+// Colour of one big pixel: sample a 4x4 patch of the canvas under it; ≥6 of 16 lit = on (like the picker).
 static uint16_t cellColour(int gx, int gy) {
   uint32_t r = 0, g = 0, b = 0, n = 0;
   for (int dy = 0; dy < 4; dy++) for (int dx = 0; dx < 4; dx++) {
-    uint16_t p = fb[(gy * 4 + dy) * W + gx * 4 + dx];
+    int cx = colX[gx * CELL + dx], cy = rowY[gy * CELL + dy];
+    if (cx < 0 || cy < 0) continue;
+    uint16_t p = fb[cy * W + cx];
     if (p) { r += (p >> 11) & 31; g += (p >> 5) & 63; b += p & 31; n++; }
   }
   if (n < 6) return BLK;
   r /= n; g /= n; b /= n;
-  // brighten like the picker's colour snap
   uint8_t R = r << 3, G = g << 2, B = b << 3;
   R = (R >> 5) << 5 | 31; G = (G >> 5) << 5 | 31; B = (B >> 5) << 5 | 31;
   return rgb(R, G, B);
@@ -176,14 +188,14 @@ void face_draw(uint8_t id, bool blink, bool bob, bool blush) {
   mouth(f.mouth);
   extra(f.extra);
 
-  // 46 rows of big pixels: one black spare row moves top/bottom to make the bob.
-  for (int row = 0; row < GH + 1; row++) {
+  // bob = everything shifts down one big pixel
+  for (int row = 0; row < GH; row++) {
     int gy = bob ? row - 1 : row;
     for (int gx = 0; gx < GW; gx++) {
       uint16_t c = (gy >= 0 && gy < GH) ? cellColour(gx, gy) : BLK;
       for (int py = 0; py < CELL; py++) for (int px = 0; px < CELL; px++)
         rowbuf[py * GW * CELL + gx * CELL + px] = c;
     }
-    scr->draw16bitRGBBitmap(OX, OY + row * CELL, rowbuf, GW * CELL, CELL);
+    scr->draw16bitRGBBitmap(0, row * CELL, rowbuf, GW * CELL, CELL);
   }
 }

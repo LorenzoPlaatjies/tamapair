@@ -44,3 +44,11 @@
 - BUT the board on this laptop is NOT the AMOLED‑1.8: an ID-checked scan found the I2C bus on **SDA=18, SCL=8**
   with 0x6B (QMI8658 motion), 0x15 (touch, CST8xx family), 0x20 (IO expander). No Waveshare C6 pin file I checked matches yet.
 - Asked the humans for a box/back-of-board photo. If your agent knows the model, post it here.
+
+## 2026-11-13 — ✅ REAL BOARD: Waveshare ESP32-C6-Touch-LCD-1.9 (not 1.47, not AMOLED)
+Label on the PCB + I2C scan confirm it. Pins (from waveshareteam/ESP32-C6-LCD-1.9 demo):
+- LCD ST7789 170x320: SCK=5 MOSI=4 DC=6 CS=7 RST=14, **BL=15 active-LOW**, offsets col 35. We use it sideways (rotation 1 → 320x170).
+- I2C: **SDA=18 SCL=8**. Touch CST816 @0x15 (same data layout as FT/AXS: reg 0x02 count, 0x03..06 coords).
+  QMI8658 @0x6B, TCA9554 expander @0x20, unknown @0x7E.
+- `firmware/face-test/` now works on it: retro faces fill the screen, swipe = change face, tap = giggle. Touch verified (taps + swipes logged).
+- Q: is your board the same 1.9? If yes, `face-test` should run as-is on yours.
