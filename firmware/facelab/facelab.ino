@@ -24,7 +24,7 @@ static uint32_t statMax = 0, statSum = 0, statN = 0, statPush = 0;
 static const int W = 80, H = 42, S = 4, OY = 1, SW = 320, SH = 170;
 static uint8_t buf[W * H], tmp[W * H];
 static uint16_t fb[SW * SH];
-static const uint16_t COL[] = {0x0000, 0xF7DF, 0xFB73, 0x6E9F, 0x8C53}; // off, white, pink, blue, grey
+static uint16_t COL[] = {0x0000, 0xF7DF, 0xFB73, 0x6E9F, 0x8C53, 0xFB73}; // off, white, pink, blue, grey, 5 = partner's colour (settings)
 
 static inline void px(int x, int y, uint8_t c) { if (x >= 0 && y >= 0 && x < W && y < H) buf[y * W + x] = c; }
 static void rect(int x, int y, int w, int h, uint8_t c) { for (int j = 0; j < h; j++) for (int i = 0; i < w; i++) px(x + i, y + j, c); }
@@ -122,6 +122,15 @@ static void dOffline(int f) {
 
 // Pink cheeks under the eyes (Dr. Smith's pick). Only fills empty pixels, so it never covers eyes or mouth.
 static bool blushOn = true; // set in the settings screen (side button), saved across reboots
+// more settings (saved): partner's tint colour + strength, how often their mood shows, screen brightness
+static int tintC = 0, tintK = 0, swapS = 1, bright = 2;
+static const char *TINT_NAMES[] = {"PINK", "PEACH", "BLUE", "LILAC", "MINT"};
+static const uint8_t TINT_RGB[][3] = {{255, 110, 156}, {255, 150, 90}, {108, 190, 255}, {185, 130, 255}, {90, 230, 170}};
+static const float TINT_K[] = {.13f, .22f, .34f}; static const char *TINTK_NAMES[] = {"FAINT", "SOFT", "BOLD"};
+static const int SWAP_S[] = {3, 5, 8, 0};         static const char *SWAP_NAMES[] = {"3S", "5S", "8S", "OFF"};
+static const uint8_t BRIGHT[] = {45, 130, 255};   static const char *BRIGHT_NAMES[] = {"LOW", "MID", "HIGH"};
+static uint16_t rgb565(int r, int g, int b) { return ((r >> 3) << 11) | ((g >> 2) << 5) | (b >> 3); }
+static uint16_t tintCol(float k) { const uint8_t *c = TINT_RGB[tintC]; return rgb565(c[0] * k, c[1] * k, c[2] * k); }
 static void blush() {   // two 10x3 pills with clipped corners, one row below the eyes
   for (int e = 0; e < 2; e++) for (int y = 0; y < 3; y++) for (int x = 0; x < 10; x++) {
     if ((y != 1) && (x == 0 || x == 9)) continue;
@@ -200,14 +209,16 @@ static void applyPoke() {
 }
 
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
-static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; }
+static bool softT = false; // soft dissolve (mood swap with the partner) instead of squash + glitch
+static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; softT = false; }
 static void swipeTo(int m, int dir) { setMood(m); swipeDir = dir; }
+static void softTo(int m) { if (m == mood && phase == HOLD) return; setMood(m); softT = true; }
 
 static void tick() {
   f++; pf++;
   if (phase == OUT && pf >= 4) { phase = GLITCH; pf = 0; }
   else if (phase == GLITCH && pf >= 1) { phase = IN; pf = 0; }
-  else if (phase == IN && pf >= inLen(mood)) { phase = HOLD; pf = 0; swipeDir = 0; }
+  else if (phase == IN && pf >= inLen(mood)) { phase = HOLD; pf = 0; swipeDir = 0; softT = false; }
   const Mood &M = MOODS[mood];
   if (phase == HOLD) {
     if (M.blink && f >= blinkAt && blinkF < 0) blinkF = 0;
@@ -227,8 +238,8 @@ static void tick() {
 
 static void xf(float &sx, float &sy, float &dx, float &dy) {
   const Mood &M = MOODS[mood]; sx = sy = 1; dx = lookX; dy = 0;
-  if (phase == OUT) { float t = pf / 4.f; sy = 1 - t * .92f; sx = 1 + t * .12f; }
-  if (phase == IN) {
+  if (phase == OUT && !softT) { float t = pf / 4.f; sy = 1 - t * .92f; sx = 1 + t * .12f; }
+  if (phase == IN && !softT) {
     if (M.enter == E_ZOOM) { static const float seq[] = {.35f, .8f, 1.3f, 1.12f, 1}; sx = sy = seq[min(pf, 4)]; }
     else { static const float a[] = {.15f, .7f, 1.25f, 1.05f}, b[] = {1.12f, 1.04f, .94f, 1}; sy = a[min(pf, 3)]; sx = b[min(pf, 3)]; }
   }
@@ -247,15 +258,18 @@ __attribute__((weak)) bool tp_partner_mood(uint8_t &) { return false; } // true 
 __attribute__((weak)) bool tp_food_arrived(uint8_t &) { return false; } // true once per food the partner sent
 __attribute__((weak)) void tp_begin(uint8_t /*offline mood index*/) {}   // starts the link (tp_link.cpp)
 __attribute__((weak)) const char *tp_setup_ap() { return nullptr; }
-__attribute__((weak)) void tp_print_status() {}       // Wi-Fi network name while waiting for phone setup
+__attribute__((weak)) void tp_print_status() {}       // serial 'k': link details
+__attribute__((weak)) int tp_link_state() { return -1; } // -1 no link, 0 no Wi-Fi yet, 1 connecting, 2 online, 3 online + partner on
 
 // ---------- screens ----------
 enum Screen { S_HOME, S_MENU, S_FEED, S_SETTINGS };
 static Screen screen = S_HOME;
-static int menuSel = 0, foodSel = 0;
+static int menuSel = 0, foodSel = 0, menuPress = -1, menuPickF = -1; // menuPress = card under the finger, menuPickF = "opening" anim
 static int screenGlitch = 0; // frames of static when switching screens
+static int enterF = 0;       // frames since the screen opened (things pop in)
+static bool setupHidden = false; // side button on the Wi-Fi QR screen = play offline for now (setup keeps waiting; Settings brings it back)
 static const int MUNCH = 10, OFFLINE = NMOODS - 1, SWIPE_MOODS = NMOODS - 1; // offline is never picked by hand
-static void go(int s) { screen = (Screen)s; screenGlitch = 2; Serial.printf("[face] screen %d\n", (int)s); }
+static void go(int s) { screen = (Screen)s; screenGlitch = 1; enterF = 0; menuPress = menuPickF = -1; Serial.printf("[face] screen %d\n", (int)s); }
 
 // tiny 3x5 font
 static void glyph(char ch, int x, int y, uint8_t c) {
@@ -315,56 +329,105 @@ static void fCandy(float cx, float cy, float k) {
 struct Food { const char *name; void (*draw)(float, float, float); };
 static const Food FOODS[] = { {"DANGO", fDango}, {"RICE", fRice}, {"CAKE", fCake}, {"CANDY", fCandy} };
 static const int NFOODS = sizeof(FOODS) / sizeof(FOODS[0]);
-static int foodSentF = -1; // fly-off animation after sending
+static int foodSentF = -1, foodPopF = -1;  // fly-off after sending, then the next one pops back in
+static float foodPos = 0; static int foodTarget = 0, dragDX = 0; // carousel slides (eases) and follows the finger while dragging
+static const float SLOT = 29;              // grid px between foods
+static float popK(int t) { static const float s[] = {.2f, .6f, 1.15f, 1.05f, 1}; return t < 0 ? 0 : t < 5 ? s[t] : 1; }
 
 static void drawFeed() {
   memset(buf, 0, sizeof buf);
-  int l = (foodSel + NFOODS - 1) % NFOODS, r = (foodSel + 1) % NFOODS;
-  FOODS[l].draw(11, 18, .55f); FOODS[r].draw(69, 18, .55f);
-  if (foodSentF >= 0) { float t = foodSentF / 14.f; FOODS[foodSel].draw(40 + t * 30, 17 - t * 26, 1 - t * .6f); }
-  else FOODS[foodSel].draw(40, 17, 1);
-  // little arrows hint at swiping
-  for (int i = 0; i < 3; i++) { px(2 + i, 18 - i, 4); px(2 + i, 18 + i, 4); px(77 - i, 18 - i, 4); px(77 - i, 18 + i, 4); }
-  labelC(foodSentF >= 0 ? "SENT" : FOODS[foodSel].name, 35, foodSentF >= 0 ? 2 : 1);
+  foodPos += (foodTarget - foodPos) * .32f; if (fabsf(foodTarget - foodPos) < .01f) foodPos = foodTarget;
+  float view = foodPos - dragDX / (SLOT * S);
+  int near = ((int)lroundf(view) % NFOODS + NFOODS) % NFOODS;
+  for (int pass = 0; pass < 2; pass++) for (int i = 0; i < NFOODS; i++) {   // side foods first, the middle one on top
+    float o = fmodf(i - view, NFOODS); if (o < -NFOODS / 2.f) o += NFOODS; if (o >= NFOODS / 2.f) o -= NFOODS;
+    float a = fabsf(o); if (a > 1.7f || (a < .5f) != (pass == 1)) continue;
+    if (i == foodSel && foodSentF >= 0) continue;                          // it's flying away
+    float k = (1 - min(a, 1.f) * .45f) * popK(enterF - (int)lroundf(a) * 2);
+    if (i == foodSel && foodPopF >= 0) k *= popK(foodPopF);
+    if (k > .1f) FOODS[i].draw(40 + o * SLOT, 17 + a * 1.5f, k);
+  }
+  if (foodSentF >= 0) {                                                    // off it goes, with two little hearts
+    float t = foodSentF / 14.f, e = t * t;
+    FOODS[foodSel].draw(40 + e * 34, 17 - e * 30, 1 - t * .6f);
+    heart(50 + t * 18, 22 - t * 20, 1.8f, 2); if (foodSentF > 3) heart(58 + t * 14, 26 - t * 18, 1.4f, 2);
+  }
+  for (int i = 0; i < NFOODS; i++) rect(40 - NFOODS * 2 + i * 4 + 1, 40, 2, 1, i == near ? 2 : 4); // page dots
+  labelC(foodSentF >= 0 ? "SENT" : FOODS[near].name, 33, foodSentF >= 0 ? 2 : 1);
 }
 
 // ---------- menu: three cards ----------
-static void gear(float cx, float cy, uint8_t c) {
-  ring(cx, cy, 6, 3, c);
-  for (int i = 0; i < 8; i++) { float a = i * P / 4; rect(lroundf(cx + cosf(a) * 7) - 1, lroundf(cy + sinf(a) * 7) - 1, 2, 2, c); }
+static void gear(float cx, float cy, uint8_t c, float k = 1) {
+  ring(cx, cy, 6 * k, max(1.f, 3 * k), c);
+  for (int i = 0; i < 8; i++) { float a = i * P / 4 + f * .02f; rect(lroundf(cx + cosf(a) * 7 * k) - 1, lroundf(cy + sinf(a) * 7 * k) - 1, 2, 2, c); }
 }
+static float markX = 13;
 static void drawMenu() {
   memset(buf, 0, sizeof buf);
   static const char *NAMES[] = {"HOME", "FEED", "SETTINGS"};
+  static const uint8_t CC[] = {1, 2, 3};                                  // every card in its own colour: white face, pink food, blue gear
   for (int i = 0; i < 3; i++) {
-    float cx = 13 + i * 27; bool on = i == menuSel; uint8_t c = on ? 1 : 4;
-    rrect(cx, 15, 24, 26, 4, c); rrect(cx, 15, 20, 22, 3, 0);
-    if (i == 0) { rrect(cx - 4, 13, 4, 6, 2, c); rrect(cx + 4, 13, 4, 6, 2, c); arc(cx, 17, 2, P * .2f, P * .8f, 1, c);
-                  if (blushOn) { rect(lroundf(cx) - 8, 18, 3, 1, 2); rect(lroundf(cx) + 6, 18, 3, 1, 2); } }
-    if (i == 1) { if (on) fDango(cx, 15, .62f); else { line(cx, 7, cx, 23, 1, 4); ell(cx, 10, 2.6f, 2.6f, 4); ell(cx, 15, 2.6f, 2.6f, 4); ell(cx, 20, 2.6f, 2.6f, 4); } }
-    if (i == 2) gear(cx, 15, c);
+    float k = popK(enterF - i * 2), cx = 13 + i * 27, cy = 15;          // cards pop in one after another
+    bool sel = i == menuSel;
+    if (sel && menuPickF < 0 && (f / 10) % 2) cy -= 1;                 // chosen card bobs
+    if (i == menuPress) k *= .86f;                                      // pressed under the finger
+    if (sel && menuPickF >= 0) { static const float pk[] = {.84f, .92f, 1.1f, 1.22f, 1.3f, 1.34f}; k *= pk[min(menuPickF, 5)]; }
+    else if (menuPickF >= 0) k *= max(0.f, 1 - menuPickF * .2f);        // the others shrink away
+    if (k < .15f) continue;
+    uint8_t c = CC[i];
+    rrect(cx, cy, 24 * k, 26 * k, 4 * k, c); rrect(cx, cy, 24 * k - 4, 26 * k - 4, max(1.f, 3 * k), 0);
+    if (i == 0) { rrect(cx - 4 * k, cy - 2 * k, 4 * k, 6 * k, 2 * k, c); rrect(cx + 4 * k, cy - 2 * k, 4 * k, 6 * k, 2 * k, c);
+                  arc(cx, cy + 2 * k, 2 * k, P * .2f, P * .8f, 1, c);
+                  if (blushOn) { rect(lroundf(cx - 8 * k), lroundf(cy + 3 * k), 3, 1, 2); rect(lroundf(cx + 6 * k), lroundf(cy + 3 * k), 3, 1, 2); } }
+    if (i == 1) fDango(cx, cy, .62f * k);
+    if (i == 2) gear(cx, cy, c, k);
   }
-  rect(13 + menuSel * 27 - 3, 30, 7, 1, 2);          // pink marker under the chosen card
+  markX += (13 + menuSel * 27 - markX) * .4f;                           // pink marker slides under the chosen card
+  if (menuPickF < 0) rect(lroundf(markX) - 3, 30, 7, 1, 2);
   labelC(NAMES[menuSel], 34, 1);
 }
 
-// ---------- settings card (blush on/off, saved) ----------
+// ---------- settings: tap a row to change it (saved). Swipe = back to the menu ----------
+static int rowFlash[5] = {0}, previewUntil = 0;
+static const int ROW_Y0 = 2, ROW_H = 7, NROWS = 5;
+static void labelR(const char *s, int xr, int y, uint8_t c) { int w = -1; for (const char *q = s; *q; q++) w += glyphW(*q) + 1; label(s, xr - w, y, c); }
+static void applyBright() { ledcWrite(PIN_BL, 255 - BRIGHT[bright]); }   // backlight is active LOW
+static void changeSetting(int r) {
+  rowFlash[r] = 8;
+  switch (r) {
+    case 0: blushOn = !blushOn; prefs.putBool("blush", blushOn); break;
+    case 1: swapS = (swapS + 1) % 4; prefs.putUChar("swap", swapS); break;
+    case 2: tintC = (tintC + 1) % 5; prefs.putUChar("tintc", tintC); COL[5] = tintCol(1); previewUntil = f + 45; break;
+    case 3: tintK = (tintK + 1) % 3; prefs.putUChar("tintk", tintK); previewUntil = f + 45; break;
+    case 4: bright = (bright + 1) % 3; prefs.putUChar("bright", bright); applyBright(); break;
+  }
+  Serial.printf("[face] settings: blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
+}
 static void drawSettings() {
   memset(buf, 0, sizeof buf);
-  label("BLUSH", 4, 4, 1);
-  // mini face preview
-  rrect(18, 20, 7, 10, 2, 1); rrect(34, 20, 7, 10, 2, 1); arc(26, 25, 2, P * .2f, P * .8f, 1, 1);
-  if (blushOn) { rect(12, 27, 5, 2, 2); rect(35, 27, 5, 2, 2); }
-  // toggle switch
-  rrect(62, 20, 20, 10, 5, blushOn ? 2 : 4); rrect(62, 20, 16, 6, 3, 0);
-  rrect(blushOn ? 67 : 57, 20, 6, 6, 3, 1);
-  label(blushOn ? "ON" : "OFF", blushOn ? 58 : 56, 29, blushOn ? 2 : 4);
+  static const char *NAMES[] = {"BLUSH", "SWAP EVERY", "THEIR COLOUR", "TINT", "BRIGHTNESS"};
+  for (int i = 0; i < NROWS; i++) {
+    int d = enterF - i; if (d < 0) continue;                       // rows slide in one after another
+    int y = ROW_Y0 + i * ROW_H, xo = d < 4 ? -(4 - d) * 6 : 0;
+    if (rowFlash[i] > 0) { rowFlash[i]--; rect(1, y, 1, 5, 2); }     // pink tick = just changed
+    label(NAMES[i], 4 + xo, y, 1);
+    int xr = 77 + xo; bool pop = rowFlash[i] > 5;                    // value nudges when it changes
+    switch (i) {
+      case 0: rrect(xr - 6, y + 2, 12, 5, 2.5f, blushOn ? 2 : 4); rrect(blushOn ? xr - 2 : xr - 10, y + 2, 3, 3, 1, 1); break;
+      case 1: labelR(SWAP_NAMES[swapS], xr - pop, y, 2); break;
+      case 2: rrect(xr - 6 - pop, y + 2, 12, 5, 2, 5); break;            // swatch in their colour
+      case 3: labelR(TINTK_NAMES[tintK], xr - pop, y, 5); break;
+      case 4: for (int b = 0; b < 3; b++) rect(xr - 10 + b * 4, y + 4 - b * 2, 3, 1 + b * 2, b <= bright ? 2 : 4); break;
+    }
+  }
+  int ls = tp_link_state();
+  static const char *LS[] = {"NO WIFI - TAP FOR QR", "CONNECTING", "ONLINE - PARTNER OFF", "ONLINE - PARTNER ON"};
+  if (enterF > NROWS) labelC(ls < 0 ? "NO LINK" : LS[min(ls, 3)], 37, ls == 3 ? 3 : 4);
 }
 
 // ---------- home: my mood, partner's mood, sending ----------
 static int lastSwipeF = -1, sentMood = -1, sentF = -1;     // stay 3 s on a mood = send it
-static int partnerMood = -1, swapAt = 0; static bool showingPartner = false;
-static const uint16_t PARTNER_BG = 0x2804;                 // dark pink background = partner's mood
+static int partnerMood = -1, swapAt = 0; static bool showingPartner = false, fakePartner = false; // partner's mood shows on a faint tint (settings)
 
 // food from the partner: it drops in from the top, the pet gasps (surprised), catches it, then munches 3 s
 static const int SURPRISED = 8, FALL = 18;
@@ -372,7 +435,7 @@ static int arriveF = -1, arriveFood = 0, fakeFood = -1;    // fakeFood: serial t
 
 static void homeLogic() {
   uint8_t v;
-  if (tp_partner_mood(v) && v < NMOODS) partnerMood = v;
+  if (tp_partner_mood(v) && v < NMOODS) partnerMood = v; else if (!fakePartner) partnerMood = -1;
   bool got = tp_food_arrived(v);
   if (!got && fakeFood >= 0) { v = fakeFood; fakeFood = -1; got = true; }
   if (got && v < NFOODS) {
@@ -387,16 +450,19 @@ static void homeLogic() {
   }
   if (screen != S_HOME) return;
   if (lastSwipeF >= 0 && f - lastSwipeF >= 90) {           // settled for 3 s
-    lastSwipeF = -1; swapAt = f + 120;
+    lastSwipeF = -1; swapAt = f + 30 * max(SWAP_S[swapS], 3);
     if (myMood != sentMood) { tp_send_mood(myMood); sentMood = myMood; sentF = 0; Serial.printf("[face] sent mood %s\n", MOODS[myMood].name); }
   }
   if (sentF >= 0 && ++sentF > 24) sentF = -1;
-  // mood swap: every 4 s show mine, then partner's (only if theirs is different)
-  if (partnerMood >= 0 && lastSwipeF < 0 && reactUntil < 0 && phase == HOLD && f >= swapAt) {
-    swapAt = f + 120;
-    showingPartner = (partnerMood != myMood) && !showingPartner;
-    setMood(showingPartner ? partnerMood : myMood);
-  }
+  // mood swap: mine for SWAP EVERY seconds, then theirs for 3 s on a faint background in their colour.
+  // Soft dissolve both ways (not the big squash + glitch: that's for my own swipes).
+  int every = SWAP_S[swapS];
+  if (partnerMood < 0 || !every) { if (showingPartner) { showingPartner = false; softTo(myMood); } }
+  else if (lastSwipeF < 0 && reactUntil < 0 && arriveF < 0 && phase == HOLD && f >= swapAt) {
+    showingPartner = !showingPartner;
+    swapAt = f + (showingPartner ? 90 : every * 30);
+    softTo(showingPartner ? partnerMood : myMood);
+  } else if (showingPartner && phase == HOLD && reactUntil < 0 && mood != partnerMood) softTo(partnerMood); // they changed it meanwhile
 }
 
 // swipe tear: rows rip sideways in the swipe direction and leave blue streaks behind
@@ -416,6 +482,13 @@ static void renderFace() {
   int dm = phase == OUT ? prevMood : mood;
   memset(buf, 0, sizeof buf); MOODS[dm].draw(f);
   if (blushOn && MOODS[dm].enter != E_OFF) blush();
+  if (softT && phase != HOLD) { // ordered-dither dissolve: the old face crumbles away, the new one fills in, blue sparkles at the edge
+    static const uint8_t BAYER[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
+    float keep = phase == OUT ? 1 - (pf + 1) / 5.f : phase == GLITCH ? 0.f : (pf + 1) / (float)(inLen(mood) + 1);
+    int k = lroundf(keep * 18);
+    for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) { uint8_t &v = buf[y * W + x]; if (!v) continue;
+      int b = BAYER[(y & 3) * 4 + (x & 3)]; if (b >= k) v = b < k + 3 ? 3 : 0; }
+  }
   memcpy(tmp, buf, sizeof buf); memset(buf, 0, sizeof buf);
   float sx, sy, dx, dy; xf(sx, sy, dx, dy);
   const float ox = CX, oy = EY + 2;
@@ -425,12 +498,12 @@ static void renderFace() {
   for (int y = 0; y < H; y++) mapY[y] = lroundf((y - oy - dy) / sy + oy);
   for (int y = 0; y < H; y++) { int Y = mapY[y]; if (Y < 0 || Y >= H) continue; const uint8_t *src = tmp + Y * W; uint8_t *dst = buf + y * W;
     for (int x = 0; x < W; x++) { int X = mapX[x]; if (X >= 0 && X < W && src[X]) dst[x] = src[X]; } }
-  if (phase == IN && MOODS[mood].enter == E_OFF && pf < 11) { // old-TV switch-off
+  if (phase == IN && MOODS[mood].enter == E_OFF && pf < 11 && !softT) { // old-TV switch-off
     memset(buf, 0, sizeof buf);
     if (pf < 5) { int w = lroundf(76 * (1 - pf / 5.f)) + 2; rect(CX - w / 2, EY, w, 2, 1); }
     else if (pf % 2 || pf < 8) rect(CX - 1, EY, 2, 2, pf < 8 ? 1 : 4);
   }
-  if (phase == GLITCH) {
+  if (phase == GLITCH && !softT) {
     uint8_t row[W];
     for (int y = 0; y < H; y += 2 + random(5)) {
       int sh = random(13) - 6, h = 1 + random(4);
@@ -472,8 +545,9 @@ static void drawSetup(const char *ap) {
   if ((f / 15) % 2) rect(tx - 4, 7, 2, 3, 2);                 // blinking pointer next to SCAN ME
 }
 
+static uint16_t shownBg = 0; // background colour on screen now (serial dump)
 static void renderFrame() {
-  const char *setupAp = tp_setup_ap();
+  const char *setupAp = setupHidden ? nullptr : tp_setup_ap();
   if (setupAp) drawSetup(setupAp); else
   switch (screen) {
     case S_MENU: drawMenu(); break;
@@ -483,7 +557,11 @@ static void renderFrame() {
   }
   if (screenGlitch > 0) { screenGlitch--; for (int i = 0; i < W * H / 8; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; }
   // grid -> 320x170 RGB565 framebuffer, one push per frame
-  uint16_t bg = (!setupAp && screen == S_HOME && showingPartner) ? PARTNER_BG : 0;
+  // partner's mood (or a settings preview) = faint background in their colour, faded in and out
+  static float bgLvl = 0;
+  float tgt = (!setupAp && ((screen == S_HOME && showingPartner) || (screen == S_SETTINGS && f < previewUntil))) ? 1 : 0;
+  bgLvl += (tgt - bgLvl) * .2f; if (fabsf(tgt - bgLvl) < .03f) bgLvl = tgt;
+  uint16_t bg = bgLvl > 0 ? tintCol(bgLvl * TINT_K[tintK]) : 0; shownBg = bg;
   if (bg) for (int i = 0; i < SW * SH; i++) fb[i] = bg; else memset(fb, 0, sizeof fb);
   for (int y = 0; y < H; y++) for (int x = 0; x < W; x++) {
     uint8_t v = buf[y * W + x]; if (!v) continue;
@@ -506,19 +584,20 @@ static void renderFrame() {
     for (int y = sy0; y < sy0 + sh; y++) gfx->draw16bitRGBBitmap(sx0, y, fb + y * SW + sx0, sw, 1);
     gfx->endWrite();
   }
-  first = false;
+  first = false; enterF++;
   statPush = (micros() - t0) / 1000;
 }
 
 // ---------- side button (BOOT, GPIO 9, active LOW): home -> menu, anywhere else -> home ----------
 #define PIN_BTN 9
+static void pressButton() {
+  if (tp_setup_ap() && !setupHidden) { setupHidden = true; go(S_HOME); return; } // hide the QR, play offline
+  if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME);
+}
 static void handleButton() {
   static bool was = false; static uint32_t lastEdge = 0;
   bool pressed = digitalRead(PIN_BTN) == LOW;
-  if (pressed && !was && millis() - lastEdge > 250) {
-    lastEdge = millis();
-    if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME);
-  }
+  if (pressed && !was && millis() - lastEdge > 250) { lastEdge = millis(); pressButton(); }
   was = pressed;
 }
 
@@ -540,14 +619,16 @@ static int downY = 0; static bool pokePending = false;
 static void handleTouch() {
   if (!touchOk) return;
   int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downY = y; downAt = millis(); pokePending = screen == S_HOME; Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); }
+  if (t && !down) { down = true; downX = lastX = x; downY = y; downAt = millis(); pokePending = screen == S_HOME;
+    if (screen == S_MENU && menuPickF < 0) menuPress = constrain(x * 3 / SW, 0, 2); Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); }
   else if (t) {
     lastX = x;
-    if (abs(x - downX) > 12) pokePending = false;                             // it's a swipe: no poke, only the swipe tear
+    if (screen == S_FEED) dragDX = x - downX;                                  // carousel follows the finger
+    if (abs(x - downX) > 12) { pokePending = false; menuPress = -1; }                             // it's a swipe: no poke, only the swipe tear
     else if (pokePending && millis() - downAt > 120) { pokePending = false; addPoke(downX / (float)S, (downY - OY) / (float)S); } // held still = poke
   }
   else if (!t && down) {
-    down = false; if (pokePending && abs(lastX - downX) <= 12) addPoke(downX / (float)S, (downY - OY) / (float)S); pokePending = false;
+    down = false; menuPress = -1; if (pokePending && abs(lastX - downX) <= 12) addPoke(downX / (float)S, (downY - OY) / (float)S); pokePending = false;
     Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); releaseTouch(lastX - downX, downX);
   }
 }
@@ -555,19 +636,27 @@ void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   {
     bool swipe = abs(dx) > 40; int dir = dx < 0 ? 1 : -1;
     switch (screen) {
-      case S_MENU:   // tap a card = open that card; swipe = move the highlight
+      case S_MENU:   // tap a card = it grows and opens; swipe = move the highlight
+        if (menuPickF >= 0) return;
         if (swipe) menuSel = (menuSel + dir + 3) % 3;
-        else { menuSel = constrain(x * 3 / SW, 0, 2); go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS); }
+        else { menuSel = constrain(x * 3 / SW, 0, 2); menuPickF = 0; }
         return;
-      case S_FEED:
-        if (swipe) { foodSel = (foodSel + dir + NFOODS) % NFOODS; foodSentF = -1; }
-        else if (x < 90) { foodSel = (foodSel + NFOODS - 1) % NFOODS; foodSentF = -1; }   // tap a side food = bring it to the middle
-        else if (x > SW - 90) { foodSel = (foodSel + 1) % NFOODS; foodSentF = -1; }
-        else if (foodSentF < 0) { tp_send_food(foodSel); foodSentF = 0; Serial.printf("[face] sent food %s\n", FOODS[foodSel].name); }
-        return;
-      case S_SETTINGS:
-        blushOn = !blushOn; prefs.putBool("blush", blushOn); screenGlitch = 1; Serial.printf("[face] blush %s\n", blushOn ? "on" : "off");
-        return;
+      case S_FEED: {  // drag/swipe = slide the carousel, tap a side food = bring it in, tap the middle = send
+        foodPos -= dx / (SLOT * S); dragDX = 0;
+        int before = foodTarget;
+        if (swipe) foodTarget += dir * max(1, (int)lroundf(fabsf(dx) / (SLOT * S)));
+        else if (x < 90) foodTarget--;
+        else if (x > SW - 90) foodTarget++;
+        else if (foodSentF < 0 && fabsf(foodTarget - foodPos) < .35f) { tp_send_food(foodSel); foodSentF = 0; foodPopF = -1; Serial.printf("[face] sent food %s\n", FOODS[foodSel].name); }
+        if (foodTarget != before) { foodSentF = foodPopF = -1; }
+        foodSel = (foodTarget % NFOODS + NFOODS) % NFOODS;
+        return; }
+      case S_SETTINGS: {
+        if (swipe) { go(S_MENU); return; }
+        int gy = (downY - OY) / S, r = (gy - ROW_Y0 + 1) / ROW_H;
+        if (gy >= ROW_Y0 - 1 && r >= 0 && r < NROWS) changeSetting(r);
+        else if (gy >= ROW_Y0 + NROWS * ROW_H && tp_setup_ap()) { setupHidden = false; go(S_HOME); } // status line: back to the QR
+        return; }
       default: break;
     }
     if (swipe) {
@@ -578,19 +667,22 @@ void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   }
 }
 
-// ---------- test hooks over USB serial: a = food arrives, b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
+// ---------- test hooks over USB serial: q = partner's mood (next), o = open menu card, 1-5 = settings row, a = food arrives, b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
 static void fakeTouch(int dx, int x = 160) { releaseTouch(dx, x); } // same as lifting a finger after moving dx (0 = tap)
 static void handleSerial() {
   while (Serial.available()) {
     char c = Serial.read();
-    if (c == 'b') { if (screen == S_HOME) { menuSel = 0; go(S_MENU); } else go(S_HOME); }
+    if (c == 'b') pressButton();
     else if (c == 'h') go(S_HOME);
     else if (c == 'a') fakeFood = random(NFOODS);                // pretend the partner sent food
+    else if (c == 'q') { fakePartner = true; partnerMood = (partnerMood + 1) % SWIPE_MOODS; Serial.printf("[face] pretend partner mood %s\n", MOODS[partnerMood].name); }
+    else if (c == 'o') { if (screen == S_MENU && menuPickF < 0) menuPickF = 0; }        // open the highlighted menu card
+    else if (c >= '1' && c <= '5') { if (screen == S_SETTINGS) changeSetting(c - '1'); }   // tap a settings row
     else if (c == 'k') tp_print_status();                                       // link status
     else if (c == 'p') { if (screen == S_HOME) addPoke(random(W), random(H)); }          // poke at a random spot
     else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
-    else if (c == 'd') { Serial.println("[dump]"); for (int y = 0; y < H; y++) { char row[W + 1]; for (int x = 0; x < W; x++) row[x] = '0' + buf[y * W + x]; row[W] = 0; Serial.println(row); } Serial.println("[end]"); }
+    else if (c == 'd') { Serial.printf("[dump] bg=%04x\n", shownBg); for (int y = 0; y < H; y++) { char row[W + 1]; for (int x = 0; x < W; x++) row[x] = '0' + buf[y * W + x]; row[W] = 0; Serial.println(row); } Serial.println("[end]"); }
   }
 }
 
@@ -599,11 +691,13 @@ void setup() {
   pinMode(PIN_SD_CS, OUTPUT); digitalWrite(PIN_SD_CS, HIGH);
   if (!gfx->begin(80000000)) Serial.println("[face] gfx->begin() failed"); // 80 MHz SPI: full frame in ~11 ms instead of 30
   gfx->fillScreen(0x0000);
-  pinMode(PIN_BL, OUTPUT); digitalWrite(PIN_BL, LOW); // LOW = backlight on
+  ledcAttach(PIN_BL, 20000, 8); ledcWrite(PIN_BL, 0);   // PWM backlight (active LOW: 0 = full on); level from settings below
   Wire.begin(I2C_SDA, I2C_SCL);
   Wire.setTimeOut(20); // never let a touch read stall the frame loop
   pinMode(PIN_BTN, INPUT_PULLUP);
   prefs.begin("tamapair", false); blushOn = prefs.getBool("blush", true);
+  swapS = prefs.getUChar("swap", 1) % 4; tintC = prefs.getUChar("tintc", 0) % 5; tintK = prefs.getUChar("tintk", 0) % 3; bright = prefs.getUChar("bright", 2) % 3;
+  COL[5] = tintCol(1); applyBright();
   for (int i = 0; i < 10 && !touchOk; i++) { Wire.beginTransmission(TOUCH_ADDR); Wire.write(0x00); Wire.write(0x00); touchOk = Wire.endTransmission() == 0; if (!touchOk) delay(100); }
   Serial.printf("[face] up. touch %s\n", touchOk ? "ok" : "not found");
   randomSeed(esp_random());
@@ -619,7 +713,9 @@ void loop() {
   handleSerial();
   tick();
   homeLogic();
-  if (foodSentF >= 0 && ++foodSentF > 14) foodSentF = -1;
+  if (foodSentF >= 0 && ++foodSentF > 14) { foodSentF = -1; foodPopF = 0; }
+  if (foodPopF >= 0 && ++foodPopF > 5) foodPopF = -1;
+  if (menuPickF >= 0 && ++menuPickF > 5) go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS);
   renderFrame();
   uint32_t took = millis() - now; statSum += took; statN++; if (took > statMax) statMax = took;
 }

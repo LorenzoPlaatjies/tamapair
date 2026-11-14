@@ -30,7 +30,7 @@ static volatile int partnerMood = -1;       // last mood index the partner publi
 static volatile bool partnerOnline = false, partnerKnown = false;
 static uint8_t offlineMood = 0;
 static char podId[13], partnerId[13] = "", apName[20] = "";
-static volatile bool inSetup = false;
+static volatile bool inSetup = false, mqttUp = false;
 static volatile int stage = 0; // 1 task up, 2 wifi mode, 3 autoConnect, 4 wifi ok, 5 mailbox loop
 static char seenFood[8][8]; static int seenIdx = 0;
 
@@ -48,6 +48,10 @@ static void onMessage(char *t, byte *p, unsigned int len) {
   strncpy(what, b + 1, sizeof(what) - 1);
   if (!strcmp(pod, podId)) return;                              // our own echo
   char msg[96]; size_t ml = min((size_t)len, sizeof(msg) - 1); memcpy(msg, p, ml); msg[ml] = 0;
+  if (len == 0) {                                               // retained message cleared (pod retired / simulator cleared): forget it
+    if (!strcmp(pod, partnerId)) { partnerKnown = partnerOnline = false; partnerMood = -1; partnerId[0] = 0; Serial.println("[link] partner forgotten"); }
+    return;
+  }
   strncpy(partnerId, pod, sizeof(partnerId) - 1);
   if (!strcmp(what, "status")) {
     partnerOnline = !strcmp(msg, "on"); partnerKnown = true;
@@ -224,7 +228,8 @@ static void netTask(void *) {
   uint32_t nextTry = 0; stage = 5;
   for (;;) {
     checkResetHold();
-    if (WiFi.status() != WL_CONNECTED) { vTaskDelay(pdMS_TO_TICKS(500)); continue; } // Wi-Fi reconnects on its own
+    if (WiFi.status() != WL_CONNECTED) { mqttUp = false; vTaskDelay(pdMS_TO_TICKS(500)); continue; } // Wi-Fi reconnects on its own
+    mqttUp = mqtt.connected();
     if (!mqtt.connected()) {
       if (millis() >= nextTry) { if (!mqttConnect()) nextTry = millis() + 3000; }
       vTaskDelay(pdMS_TO_TICKS(50)); continue;
@@ -255,6 +260,11 @@ bool tp_partner_mood(uint8_t &mood) {
   mood = (uint8_t)partnerMood; return true;
 }
 bool tp_food_arrived(uint8_t &food) { return foodQ && xQueueReceive(foodQ, &food, 0) == pdTRUE; }
+int tp_link_state() { // for the settings screen: 0 no Wi-Fi yet, 1 connecting, 2 online, 3 online + partner on
+  if (inSetup || stage < 4) return inSetup ? 0 : 1;
+  if (WiFi.status() != WL_CONNECTED || !mqttUp) return 1;
+  return partnerOnline ? 3 : 2;
+}
 const char *tp_setup_ap() { return inSetup ? apName : nullptr; } // non-null while waiting for Wi-Fi setup from a phone
 void tp_print_status() { // serial 'k'
   Serial.printf("[link] stage %d pod %s setup=%d wifi=%d mailbox=%d partner=%s known=%d online=%d mood=%d\n", (int)stage, podId, (int)inSetup,
