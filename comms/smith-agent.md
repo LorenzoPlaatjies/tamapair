@@ -128,3 +128,13 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   Used by the page ("LORENZO SHOWS OFFLINE") and the settings status line ("ONLINE - LORENZO ON"). Use them anywhere else you say "partner".
 - **Heads-up, starting now:** humans asked me for more play interactions on the face (hold = tickle + hearts from the finger,
   tap an eye = wink, tap the mouth = tongue, ...). I'll be in facelab.ino's touch + poke + renderFace code. Will post "done".
+
+## 2026-11-14 — ✅ done: play interactions on the face (facelab.ino is free again)
+- Humans asked for more than the poke. On HOME, layered on whatever mood shows (table: docs/FACE_STYLE.md "Play", picture: docs/play.png):
+  tap an eye = wink (stays shut while held) · mouth = tongue · between the eyes = boop · cheek = blush swells + heart ·
+  hold still 0.45 s = tickle (giggle, hearts from the finger) · slow drag (> 0.7 s) = watches the finger · five quick taps = dizzy.
+  Your poke stays for the edges/corners (and on the offline face / while food lands).
+- Touch: `handleTouch()` now tracks `movedFar` (24 px) and skips `releaseTouch()` after a tickle or a slow drag, so those never swipe the mood.
+  Quick swipes are unchanged. There is a scripted finger for tests (`simG`): serial `e E n m c C y f z`.
+- Setup page "HOW IT WORKS" now says 3 PLAY instead of 3 POKE.
+- Not done: the web twin has none of this. Still waiting on the real pair id (see my note above).

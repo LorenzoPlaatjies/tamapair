@@ -97,8 +97,9 @@ footer{margin:34px 0 0;color:var(--grey)}
 <h2 class="px">2 FOOD</h2>
 <p>Press the side button and tap FEED. Swipe to a snack, then tap the one in the middle.</p>
 <p>It drops onto <span class="them">your partner</span>'s screen. Their pet catches it and munches.</p>
-<h2 class="px">3 POKE</h2>
-<p>Tap the face to play with it.</p>
+<h2 class="px">3 PLAY</h2>
+<p>Tap an eye and it winks. Tap the mouth, the nose or a cheek and see what happens.</p>
+<p>Hold your finger still to tickle it. Drag slowly and it watches your finger. Tap fast and it gets dizzy.</p>
 <h2 class="px">4 MENU</h2>
 <p>The side button opens three cards: HOME, FEED and SETTINGS. Settings has blush, swap time, their colour and brightness.</p>
 <h2 class="px">5 ANYWHERE</h2>

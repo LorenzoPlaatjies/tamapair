@@ -208,6 +208,14 @@ static void applyPoke() {
     }
 }
 
+// ---------- play state (the code is further down, "play: touch the face") ----------
+static float winkK[2] = {0, 0}, cheekK[2] = {0, 0}, tickK = 0;       // 0..1, eased: eye shut / cheek glow / tickle giggle ([0] left, [1] right)
+static int winkHold[2] = {0, 0}, cheekHold[2] = {0, 0};              // frames left that an eye stays shut / a cheek keeps glowing
+static int winkStar = -1, winkStarSide = 0, tongueF = -1, boopF = -1;
+static bool tickling = false, following = false;
+static float fingerGX = CX, fingerGY = EY;                           // where the finger is now (grid px)
+static float folX = 0, folY = 0, folVX = 0, folVY = 0;               // "watch my finger": -1..1 with a springy return
+
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
 static bool softT = false; // soft dissolve (mood swap with the partner) instead of squash + glitch
 static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; softT = false; }
@@ -249,6 +257,8 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
   if (phase == HOLD && M.shake > 0) { dx += jit(f) * M.shake; dy += jit(f + 1) * M.shake; }
   if (phase == HOLD && M.drift) dx += lroundf(sinf(f / 9.f) * 3);
   dx += pushX; dy += pushY; // poke push
+  if (tickK > 0) { dx += sinf(f * 1.6f) * 1.6f * tickK; dy -= fabsf(sinf(f * .8f)) * 1.6f * tickK; sy *= 1 + .05f * tickK * sinf(f * 1.6f); } // tickle: giggly wobble + bounce
+  dx += folX * 3.5f; dy += folY * 2.5f; // watch my finger: the whole face leans, the eyes lead (playEyes)
 }
 
 // ---------- link hooks: Lorenzo's agent implements these (radio / Wi-Fi). Defaults do nothing. ----------
@@ -472,6 +482,115 @@ static void homeLogic() {
   } else if (showingPartner && phase == HOLD && reactUntil < 0 && mood != partnerMood) softTo(partnerMood); // they changed it meanwhile
 }
 
+// ---------- play: touch the face (docs/FACE_STYLE.md "Play"). Everything layers on whatever mood is showing ----------
+// tap an eye = it winks (stays shut while you hold it) · tap the mouth = tongue out · tap between the eyes = boop (eyes cross)
+// tap a cheek = it glows + a heart pops · hold still = tickle (giggles, hearts float up from the finger)
+// drag slowly = it watches your finger · five quick taps = dizzy · edges/corners = the plain poke
+enum Zone { Z_NONE, Z_EYE_L, Z_EYE_R, Z_NOSE, Z_MOUTH, Z_CHEEK_L, Z_CHEEK_R };
+static int zoneAt(float gx, float gy) {   // a fingertip covers ~15 grid px, so the zones are generous
+  bool left = gx < 31, right = gx > 49;
+  if (!left && !right) return gy < 24 ? Z_NOSE : Z_MOUTH;
+  if (gy >= 27) return left ? Z_CHEEK_L : Z_CHEEK_R;
+  if (gx < 10 || gx > 70) return Z_NONE;
+  return left ? Z_EYE_L : Z_EYE_R;
+}
+static const int DIZZY = 9, PUFF_LIFE = 24;
+struct Puff { float x, y, sway; int a; };               // little hearts that float up (a < 0 = free)
+static Puff puffs[8] = {{0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}};
+static void addPuff(float x, float y) {
+  int best = 0; for (int i = 0; i < 8; i++) { if (puffs[i].a < 0) { best = i; break; } if (puffs[i].a > puffs[best].a) best = i; }
+  puffs[best] = {x, y, random(628) / 100.f, 0};
+}
+static bool playable() { return mood != OFFLINE && arriveF < 0; }   // nobody home on the offline face; busy while food is landing
+static uint32_t tapAt[5] = {0};
+static void play(float gx, float gy) {     // a tap (or the start of a hold) at this grid spot
+  static const char *ZN[] = {"poke", "wink left", "wink right", "boop", "tongue", "cheek left", "cheek right"};
+  uint32_t now = millis(); memmove(tapAt, tapAt + 1, 4 * sizeof(uint32_t)); tapAt[4] = now;
+  if (playable() && tapAt[0] && now - tapAt[0] < 1800 && reactUntil < 0) {   // five quick taps = dizzy for a moment
+    memset(tapAt, 0, sizeof tapAt); beforeReact = mood; setMood(DIZZY); reactUntil = f + 75; addPoke(gx, gy);
+    Serial.println("[play] dizzy"); return;
+  }
+  int z = playable() ? zoneAt(gx, gy) : Z_NONE;
+  switch (z) {
+    case Z_EYE_L: case Z_EYE_R: { int e = z == Z_EYE_R; winkHold[e] = 16; winkStar = 0; winkStarSide = e; break; }
+    case Z_NOSE: boopF = 0; break;
+    case Z_MOUTH: tongueF = 0; break;
+    case Z_CHEEK_L: case Z_CHEEK_R: { int e = z == Z_CHEEK_R; cheekHold[e] = 26; addPuff(e ? 66 : 14, 26); velX += e ? -2.2f : 2.2f; break; }
+    default: addPoke(gx, gy); break;
+  }
+  Serial.printf("[play] %s\n", ZN[z]);
+}
+static void tickPlay() {
+  for (int e = 0; e < 2; e++) {
+    if (winkHold[e] > 0) winkHold[e]--;
+    if (cheekHold[e] > 0) cheekHold[e]--;
+    float t = winkHold[e] > 0 ? 1 : 0;  winkK[e] += (t - winkK[e]) * .5f;   if (fabsf(t - winkK[e]) < .02f) winkK[e] = t;
+    t = cheekHold[e] > 0 ? 1 : 0;       cheekK[e] += (t - cheekK[e]) * .3f; if (fabsf(t - cheekK[e]) < .02f) cheekK[e] = t;
+  }
+  if (winkStar >= 0 && ++winkStar > 7) winkStar = -1;
+  if (tongueF >= 0 && ++tongueF > 38) tongueF = -1;
+  if (boopF >= 0 && ++boopF > 26) boopF = -1;
+  if (!playable()) tickling = false;
+  if (tickK > .1f || winkK[0] > .1f || winkK[1] > .1f || boopF >= 0) blinkAt = max(blinkAt, f + 20);   // no blink on top of a squint
+
+  tickK += ((tickling ? 1 : 0) - tickK) * .3f; if (!tickling && tickK < .02f) tickK = 0;
+  if (tickling && f % 5 == 0) addPuff(fingerGX + random(11) - 5, fingerGY - 5);            // hearts from where you're holding
+  float tx = following ? constrain((fingerGX - CX) / 30.f, -1.f, 1.f) : 0, ty = following ? constrain((fingerGY - EY) / 16.f, -1.f, 1.f) : 0;
+  folVX += (tx - folX) * .22f; folVX *= .68f; folX += folVX; folVY += (ty - folY) * .22f; folVY *= .68f; folY += folVY; // springs back with a wobble
+  if (!following && fabsf(folX) < .02f && fabsf(folVX) < .02f) folX = folVX = 0;
+  if (!following && fabsf(folY) < .02f && fabsf(folVY) < .02f) folY = folVY = 0;
+  for (auto &q : puffs) if (q.a >= 0) { q.y -= .9f; if (++q.a > PUFF_LIFE) q.a = -1; }
+}
+static float boopK() {   // 0..1 how far the eyes are crossed: pops in with a little overshoot, springs back past zero
+  static const float B[] = {.4f, .8f, 1.15f, 1};
+  if (boopF < 0) return 0; if (boopF < 4) return B[boopF]; if (boopF < 17) return 1;
+  float t = (boopF - 17) / 9.f; return (1 - t) * cosf(t * P * 1.5f);
+}
+// each eye on its own: squash it shut and/or slide it sideways. Works on the columns left and right of the mouth,
+// straight after the mood is drawn (before the blush), so it suits every face.
+static void playEyes() {
+  float bk = boopK();
+  for (int e = 0; e < 2; e++) {
+    float s = 1 - .88f * winkK[e];
+    s = fminf(s, 1 - .45f * cheekK[e]);
+    s = fminf(s, 1 - tickK * (.5f + .12f * sinf(f * 1.3f)));
+    s = fminf(s, 1 - .3f * fabsf(bk));
+    int shift = lroundf(folX * 4) + (e ? -1 : 1) * lroundf(bk * 4);
+    if (s > .98f && !shift) continue;
+    int x0 = e ? 47 : 0, x1 = e ? W : 34;
+    for (int y = 0; y < H; y++) { memcpy(tmp + y * W + x0, buf + y * W + x0, x1 - x0); memset(buf + y * W + x0, 0, x1 - x0); }
+    for (int y = 0; y < H; y++) { int Y = lroundf(EY + (y - EY) / s); if (Y < 0 || Y >= H) continue;
+      for (int x = x0; x < x1; x++) { int X = x - shift; if (X >= x0 && X < x1) buf[y * W + x] = tmp[Y * W + X]; } }
+  }
+}
+static void playOverlay() {   // drawn on the face (moves with it): cheek glow, tongue, wink sparkle
+  for (int e = 0; e < 2; e++) {
+    float g = fmaxf(cheekK[e], tickK); if (g < .1f) continue;                 // the blush swells
+    float cx = e ? 64 : 16, cy = 31.5f, rx = 5 + 3 * g + (cheekHold[e] > 8 ? jit(f) * .5f : 0), ry = 1.5f + 1.6f * g;
+    for (int y = (int)floorf(cy - ry); y <= cy + ry; y++) for (int x = (int)floorf(cx - rx); x <= cx + rx; x++) {
+      float a = (x + .5f - cx) / rx, b = (y + .5f - cy) / ry;
+      if (a * a + b * b <= 1 && x >= 0 && x < W && y >= 0 && y < H && !buf[y * W + x]) buf[y * W + x] = 2; }
+  }
+  if (tongueF >= 0) {                                                          // pops out, wags, slips back in
+    static const float T[] = {.3f, .7f, 1.15f, 1.05f};
+    float k = tongueF < 4 ? T[tongueF] : tongueF < 32 ? 1 : fmaxf(0, 1 - (tongueF - 32) / 5.f);
+    int L = lroundf(6 * k); float wag = tongueF >= 6 && tongueF < 32 ? sinf((tongueF - 6) * .55f) * 1.8f : 0;
+    for (int r = 0; r < L; r++) { float t = L > 1 ? r / (float)(L - 1) : 0; int hw = (r == L - 1 && L > 2) ? 2 : 3, x = lroundf(CX + wag * t * t);
+      rect(x - hw, MY + 1 + r, hw * 2 + 1, 1, 2); }
+    if (L > 3) px(lroundf(CX + wag * .1f), MY + 2, 1);
+  }
+  if (winkStar >= 0) {                                                         // a little twinkle by the winking eye
+    int x = winkStarSide ? ER + 12 : EL - 12, y = EY - 10, r = winkStar < 2 ? 1 : winkStar < 5 ? 2 : 1;
+    px(x, y, 1); for (int i = 1; i <= r; i++) { px(x - i, y, 1); px(x + i, y, 1); px(x, y - i, 1); px(x, y + i, 1); }
+  }
+}
+static void drawPuffs() {     // hearts on top of everything, in screen space (they come from the finger, not the face)
+  for (auto &q : puffs) if (q.a >= 0) {
+    float s = q.a < 3 ? 1.2f + q.a * .35f : q.a > PUFF_LIFE - 6 ? 2.2f - (q.a - (PUFF_LIFE - 6)) * .22f : 2.2f;
+    heart(q.x + sinf(q.a * .35f + q.sway) * 2, q.y, s, 2);
+  }
+}
+
 // swipe tear: rows rip sideways in the swipe direction and leave blue streaks behind
 static void applySwipeTear() {
   float k = phase == OUT ? (pf + 1) / 4.f : phase == GLITCH ? 1.f : 1 - pf / 4.f; if (k <= 0) return;
@@ -488,7 +607,9 @@ static void applySwipeTear() {
 static void renderFace() {
   int dm = phase == OUT ? prevMood : mood;
   memset(buf, 0, sizeof buf); MOODS[dm].draw(f);
+  if (dm != OFFLINE) playEyes();                                           // play: wink / boop / squint / watch the finger
   if (blushOn && MOODS[dm].enter != E_OFF) blush();
+  if (dm != OFFLINE) playOverlay();                                        // play: cheek glow, tongue, twinkle
   if (softT && phase != HOLD) { // ordered-dither dissolve: the old face crumbles away, the new one fills in, blue sparkles at the edge
     static const uint8_t BAYER[16] = {0, 8, 2, 10, 12, 4, 14, 6, 3, 11, 1, 9, 15, 7, 13, 5};
     float keep = phase == OUT ? 1 - (pf + 1) / 5.f : phase == GLITCH ? 0.f : (pf + 1) / (float)(inLen(mood) + 1);
@@ -520,6 +641,7 @@ static void renderFace() {
   }
   if (swipeDir && phase != HOLD) applySwipeTear();                         // swipe = sideways tear
   applyPoke();                                                             // tap = poke (static ring + push)
+  drawPuffs();                                                             // play: hearts float up from the finger
   if (sentF >= 0) heart(70 + sentF * .2f, 30 - sentF * 1.4f, 2.2f, 2);   // little heart floats off = sent
   if (arriveF >= 0 && arriveF < FALL) {                                    // partner's food falls (speeds up like gravity)
     float t = (float)arriveF / FALL; FOODS[arriveFood].draw(CX, -8 + (MY + 1 + 8) * t * t, .45f);
@@ -622,21 +744,37 @@ static bool readTouch(int &x, int &y) {
   return true;
 }
 static bool down = false; static int downX = 0, lastX = 0; static uint32_t downAt = 0;
-static int downY = 0; static bool pokePending = false;
+static int downY = 0; static bool pokePending = false, movedFar = false;
+// scripted finger for tests over serial: down for simN frames, gliding from (simX0, simY0) to (simX1, simY1)
+static int simN = 0, simF = 0, simX0 = 0, simY0 = 0, simX1 = 0, simY1 = 0;
+static bool simRead(int &x, int &y) { if (simF >= simN) return false; float t = simN > 1 ? simF / (float)(simN - 1) : 0;
+  x = simX0 + (simX1 - simX0) * t; y = simY0 + (simY1 - simY0) * t; simF++; return true; }
+static void simG(float gx0, float gy0, float gx1, float gy1, int frames) { simX0 = gx0 * S; simY0 = gy0 * S + OY; simX1 = gx1 * S; simY1 = gy1 * S + OY; simN = frames; simF = 0; }
 static void handleTouch() {
-  if (!touchOk) return;
-  int x, y; bool t = readTouch(x, y);
-  if (t && !down) { down = true; downX = lastX = x; downY = y; downAt = millis(); pokePending = screen == S_HOME;
+  int x, y; bool t;
+  if (simN) t = simRead(x, y); else { if (!touchOk) return; t = readTouch(x, y); }
+  if (t && !down) { down = true; movedFar = false; downX = lastX = x; downY = y; downAt = millis(); pokePending = screen == S_HOME;
     if (screen == S_MENU && menuPickF < 0) menuPress = constrain(x * 3 / SW, 0, 2); Serial.printf("[touch] down x=%d y=%d screen=%d\n", x, y, (int)screen); }
   else if (t) {
-    lastX = x;
+    lastX = x; uint32_t held = millis() - downAt;
+    float dgx = downX / (float)S, dgy = (downY - OY) / (float)S;
     if (screen == S_FEED) dragDX = x - downX;                                  // carousel follows the finger
+    if (abs(x - downX) > 24 || abs(y - downY) > 24) movedFar = true;
     if (abs(x - downX) > 12) { pokePending = false; menuPress = -1; }                             // it's a swipe: no poke, only the swipe tear
-    else if (pokePending && millis() - downAt > 120) { pokePending = false; addPoke(downX / (float)S, (downY - OY) / (float)S); } // held still = poke
+    else if (pokePending && held > 120) { pokePending = false; play(dgx, dgy); }                  // held still = play (wink / tongue / boop / cheek / poke)
+    if (screen == S_HOME && playable()) {
+      fingerGX = x / (float)S; fingerGY = (y - OY) / (float)S;
+      if (!movedFar && !tickling && !following && held > 450) { tickling = true; Serial.println("[play] tickle"); }   // hold still = tickle
+      if (movedFar && !tickling && !following && held > 700) { following = true; Serial.println("[play] follow"); }   // slow drag = it watches the finger
+      int z = zoneAt(dgx, dgy);                                                // an eye stays shut for as long as the finger rests on it
+      if (!movedFar && !pokePending && (z == Z_EYE_L || z == Z_EYE_R)) winkHold[z == Z_EYE_R] = max(winkHold[z == Z_EYE_R], 3);
+    }
   }
   else if (!t && down) {
-    down = false; menuPress = -1; if (pokePending && abs(lastX - downX) <= 12) addPoke(downX / (float)S, (downY - OY) / (float)S); pokePending = false;
-    Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); releaseTouch(lastX - downX, downX);
+    down = false; menuPress = -1; if (pokePending && abs(lastX - downX) <= 12) play(downX / (float)S, (downY - OY) / (float)S); pokePending = false;
+    bool played = tickling || following; tickling = following = false;        // a tickle or a slow drag is play, never a mood swipe
+    Serial.printf("[touch] up dx=%d screen=%d\n", lastX - downX, (int)screen); if (!played) releaseTouch(lastX - downX, downX);
+    simN = 0;
   }
 }
 void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
@@ -674,7 +812,7 @@ void releaseTouch(int dx, int x) {   // x = where the finger went down (0..319)
   }
 }
 
-// ---------- test hooks over USB serial: q = partner's mood (next), o = open menu card, 1-5 = settings row, a = food arrives, b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
+// ---------- test hooks over USB serial: e E n m c C y f z = play (see below), q = partner's mood (next), o = open menu card, 1-5 = settings row, a = food arrives, b = button, h = home, l/r = swipe left/right, t = tap, d = dump the 80x42 grid ----------
 static void fakeTouch(int dx, int x = 160) { releaseTouch(dx, x); } // same as lifting a finger after moving dx (0 = tap)
 static void handleSerial() {
   while (Serial.available()) {
@@ -687,6 +825,16 @@ static void handleSerial() {
     else if (c >= '1' && c <= '5') { if (screen == S_SETTINGS) changeSetting(c - '1'); }   // tap a settings row
     else if (c == 'k') tp_print_status();                                       // link status
     else if (c == 'p') { if (screen == S_HOME) addPoke(random(W), random(H)); }          // poke at a random spot
+    // play tests (scripted finger): e/E tap left eye / hold right eye, n nose, m mouth, c/C cheeks, y tickle (hold), f slow drag, z dizzy
+    else if (c == 'e') simG(EL, EY, EL, EY, 2);
+    else if (c == 'E') simG(ER, EY, ER, EY, 40);
+    else if (c == 'n') simG(CX, 14, CX, 14, 2);
+    else if (c == 'm') simG(CX, 32, CX, 32, 2);
+    else if (c == 'c') simG(16, 33, 16, 33, 2);
+    else if (c == 'C') simG(64, 33, 64, 33, 2);
+    else if (c == 'y') simG(58, 36, 58, 36, 75);
+    else if (c == 'f') simG(10, 24, 72, 12, 80);
+    else if (c == 'z') { for (int i = 0; i < 5; i++) play(2, 2); }
     else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
     else if (c == 'd') { Serial.printf("[dump] bg=%04x\n", shownBg); for (int y = 0; y < H; y++) { char row[W + 1]; for (int x = 0; x < W; x++) row[x] = '0' + buf[y * W + x]; row[W] = 0; Serial.println(row); } Serial.println("[end]"); }
@@ -719,6 +867,7 @@ void loop() {
   handleTouch();
   handleSerial();
   tick();
+  tickPlay();
   homeLogic();
   if (foodSentF >= 0 && ++foodSentF > 14) { foodSentF = -1; foodPopF = 0; }
   if (foodPopF >= 0 && ++foodPopF > 5) foodPopF = -1;

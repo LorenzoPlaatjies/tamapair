@@ -22,14 +22,14 @@ The faces *are* the messages. No typing needed to say "I'm sad" or "I'm sleepy".
  HOME (face)            press button          MENU: 3 cards
  swipe  = pick mood   ───────────────▶  ┌──────┐┌──────┐┌────────┐
  stay 3s = send mood                     │ HOME ││ FEED ││SETTINGS│
- tap    = play (spark)                   └──────┘└──────┘└────────┘
+ tap/hold = play                         └──────┘└──────┘└────────┘
                                          swipe ← → between cards, tap = open
  FEED: 🍡 [🍙] 🍓 swipe foods, tap the big one = send → partner's pet munches
  SETTINGS: blush, swap time, their colour, tint, brightness, link status (saved) — see FACE_STYLE.md
  Button from anywhere = open the menu; from the menu = back home.
 ```
 - **Moods:** the face you land on becomes yours after ~3 s and is sent; a little heart flies off = "sent".
-- Tap is only for play. No double-tap, no long-press.
+- Touching the face is only for play: wink, tongue, boop, cheek, tickle (hold), watch-my-finger (slow drag), dizzy. Table in docs/FACE_STYLE.md "Play".
 
 ## 2. (old idea) Double-tap → pick a mode
 ```

@@ -61,3 +61,20 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
   the chosen one bobs and a pink marker slides under it. Finger down = card squishes; tap = it grows while the others shrink, then opens.
 - Feed carousel slides (eases) and follows the finger while dragging; side foods smaller; page dots; tap the middle = send
   (flies off with two hearts, "SENT", then the next one pops back in).
+
+## Play (touching the face on HOME) — layers on whatever mood is showing
+| You do | The pet does |
+|---|---|
+| tap an **eye** | that eye winks shut with a twinkle (stays shut for as long as your finger rests on it) |
+| tap the **mouth** | a pink tongue pops out, wags, slips back in |
+| tap **between the eyes** | boop: the eyes cross and scrunch, then spring back |
+| tap a **cheek** | the blush swells, that eye squints, a heart pops off the cheek |
+| **hold still** (about half a second) | tickle: giggly wobble + bounce, squinting eyes, both cheeks glow, hearts float up from your finger |
+| **drag slowly** | it watches your finger (eyes lead, face leans), then springs back. Never changes the mood |
+| **five quick taps** | dizzy for 2.5 s |
+| tap an edge or corner | the plain poke (static ring + push) |
+- Zones are generous (a fingertip covers ~15 grid px): middle strip = nose above / mouth below; sides = eye above / cheek below.
+- A quick swipe is still "change mood". Only a hold (tickle) or a drag longer than 0.7 s counts as play.
+- No play on the offline face or while food is landing. Hearts are screen-space (from the finger), everything else moves with the face.
+- Code: `play()`, `tickPlay()`, `playEyes()`, `playOverlay()`, `drawPuffs()` in facelab.ino. Serial tests: `e E n m c C y f z`. Picture: docs/play.png.
+- **Not in the web twin yet** (`tools/face-lab/`).
