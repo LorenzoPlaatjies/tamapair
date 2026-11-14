@@ -25,7 +25,7 @@ The faces *are* the messages. No typing needed to say "I'm sad" or "I'm sleepy".
  tap    = play (spark)                   └──────┘└──────┘└────────┘
                                          swipe ← → between cards, tap = open
  FEED: 🍡 [🍙] 🍓 swipe foods, tap the big one = send → partner's pet munches
- SETTINGS: blush on / off (saved)
+ SETTINGS: blush, swap time, their colour, tint, brightness, link status (saved) — see FACE_STYLE.md
  Button from anywhere = open the menu; from the menu = back home.
 ```
 - **Moods:** the face you land on becomes yours after ~3 s and is sent; a little heart flies off = "sent".

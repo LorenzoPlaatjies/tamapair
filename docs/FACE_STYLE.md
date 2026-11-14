@@ -30,7 +30,9 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 ## Home screen bits
 - Corners stay clean: humans removed the settings dot and the last-ate timer.
 - Offline (partner board off/unplugged): old-TV switch-off (line shrinks 5f → dot 6f → face), grey hollow eyes, unplugged cable wiggle.
-- Mood swap: my mood on black ↔ partner's mood on partner's dark tint, swapped on the glitch frame, every ~4 s.
+- Mood swap: my mood on black for SWAP EVERY (3/5/8 s, default 5) ↔ partner's mood for 3 s on a faint tint of THEIR COLOUR.
+  Soft change, not the squash: ordered-dither dissolve (old face crumbles 4f with blue sparkles at the edge, new one fills in 4–5f),
+  background tint fades in/out over ~15 frames. Same mood on both = face stays, only the tint breathes in.
 
 ## Touch
 - **Tap = poke, never a mood change.** Frames 0–1: crackle across the whole screen and ~30% of rows jolt ±2 px sideways.
@@ -42,6 +44,20 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
   while rows rip sideways leaving blue streaks, 1 glitch frame, new face tears in from the other side (−30→−14→−4→+2→0).
 - Dropped: laugh-on-tap (looked like a chosen mood), big full-screen ripple (too much, froze on rapid taps).
 
-## Settings (board side button = BOOT, GPIO 9)
-- Press → settings screen (2 frames of static). Shows "BLUSH", a mini face preview and an ON/OFF switch. Tap anywhere toggles.
-- Press again → back to the face. Blush choice is saved on the board (survives unplugging).
+## Settings (button → menu → SETTINGS card). Tap a row to change it; all saved on the board. Swipe = back to the menu.
+| Row | Choices |
+|---|---|
+| BLUSH | on / off |
+| SWAP EVERY | 3S / 5S / 8S / OFF (how often the partner's mood shows) |
+| THEIR COLOUR | pink / peach / blue / lilac / mint swatch (tint behind the partner's mood; the screen previews it 1.5 s) |
+| TINT | FAINT / SOFT / BOLD |
+| BRIGHTNESS | 3 bars (backlight PWM) |
+| status line | NO WIFI - TAP FOR QR · CONNECTING · ONLINE - PARTNER OFF/ON |
+- Rows slide in one after another; a changed row gets a pink tick and its value nudges.
+- Wi-Fi QR screen: a short button press hides it (play offline); the status line in settings brings it back.
+
+## Menu + feed feel
+- Menu cards are always in colour (white face / pink dango / blue gear), pop in one after another (2 frames apart),
+  the chosen one bobs and a pink marker slides under it. Finger down = card squishes; tap = it grows while the others shrink, then opens.
+- Feed carousel slides (eases) and follows the finger while dragging; side foods smaller; page dots; tap the middle = send
+  (flies off with two hearts, "SENT", then the next one pops back in).

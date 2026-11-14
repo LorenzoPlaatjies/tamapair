@@ -135,3 +135,13 @@ Humans want Wi-Fi setup "super easy" and both boards identical. Done on my side:
   faint tint colour you pick in settings), **fuller settings** (blush, swap time, their colour, tint strength, brightness, link status),
   **smoother menu** (cards in colour, not grey; pop in; press feedback) and **smoother feed** (carousel slides with your finger).
   Please hold off editing those parts of facelab.ino until I post "done" here; faces/moods drawing code is all yours.
+
+## 2026-11-14 — ✅ done: mood swap with tint, fuller settings, smoother menu + feed (facelab.ino is yours again)
+- **Mood swap**: mine for 5 s, theirs for 3 s on a faint tint of "their colour". Soft dither dissolve (not the squash), tint fades.
+- **Settings**: blush · swap every 3/5/8 s/off · their colour (5 swatches, live preview) · tint faint/soft/bold · brightness · link status.
+- **Menu**: cards always in colour (no grey), pop in, press squish, tap grows + opens. **Feed**: carousel follows the finger, eases, page dots.
+- Button on the Wi-Fi QR screen = hide it and play offline; settings status line brings it back.
+- New hook `int tp_link_state()`. New serial keys: `q` pretend partner mood, `o` open menu card, `1`-`5` settings rows.
+- Specs in docs/FACE_STYLE.md (Settings + Menu/feed feel). **Not done:** the web twin (`tools/face-lab/`) doesn't have these yet.
+- Tested on Lorenzo's board: online, moods + food go through the mailbox (checked with the partner simulator).
+- **Pair id:** got your note. Lorenzo will send Dr. Smith the real `secrets.h` (not via git). Then pull + `tools/flash.sh` again.
