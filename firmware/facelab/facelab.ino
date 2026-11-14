@@ -259,6 +259,7 @@ __attribute__((weak)) bool tp_food_arrived(uint8_t &) { return false; } // true 
 __attribute__((weak)) void tp_begin(uint8_t /*offline mood index*/) {}   // starts the link (tp_link.cpp)
 __attribute__((weak)) const char *tp_setup_ap() { return nullptr; }
 __attribute__((weak)) void tp_print_status() {}       // serial 'k': link details
+__attribute__((weak)) const char *tp_partner_name() { return nullptr; } // partner's first name if this board is a known pod (tp_link.cpp WHO)
 __attribute__((weak)) int tp_link_state() { return -1; } // -1 no link, 0 no Wi-Fi yet, 1 connecting, 2 online, 3 online + partner on
 
 // ---------- screens ----------
@@ -422,7 +423,13 @@ static void drawSettings() {
   }
   int ls = tp_link_state();
   static const char *LS[] = {"NO WIFI - TAP FOR QR", "CONNECTING", "ONLINE - PARTNER OFF", "ONLINE - PARTNER ON"};
-  if (enterF > NROWS) labelC(ls < 0 ? "NO LINK" : LS[min(ls, 3)], 37, ls == 3 ? 3 : 4);
+  char named[28]; const char *pn = tp_partner_name(), *line = ls < 0 ? "NO LINK" : LS[min(ls, 3)];
+  if (ls >= 2 && pn) { // "ONLINE - LORENZO ON": the partner's real name when this board is a known pod
+    int n = snprintf(named, sizeof named, "ONLINE - %.10s %s", pn, ls == 3 ? "ON" : "OFF");
+    for (int i = 0; i < n; i++) named[i] = toupper(named[i]);
+    line = named;
+  }
+  if (enterF > NROWS) labelC(line, 37, ls == 3 ? 3 : 4);
 }
 
 // ---------- home: my mood, partner's mood, sending ----------

@@ -31,6 +31,9 @@ class H(http.server.BaseHTTPRequestHandler):
             self.send(200, page(), "text/html; charset=utf-8")
         elif path == "/nets":
             self.send(200, json.dumps({"busy": False, "saved": "", "n": NETS}))
+        elif path == "/who":  # the pod knows whose it is; open /?as=lorenzo to see the other pod's wording
+            me = "Lorenzo" if "lorenzo" in self.headers.get("Referer", "") else "Jade"
+            self.send(200, json.dumps({"me": me, "them": "Jade" if me == "Lorenzo" else "Lorenzo"}))
         elif path == "/status":
             if state["st"].startswith("trying") and time.time() - state["at"] > 3:
                 state["st"] = state["st"].split(":")[1]

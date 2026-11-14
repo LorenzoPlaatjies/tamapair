@@ -30,6 +30,11 @@ static volatile int partnerMood = -1;       // last mood index the partner publi
 static volatile bool partnerOnline = false, partnerKnown = false;
 static uint8_t offlineMood = 0;
 static char podId[13], partnerId[13] = "", apName[20] = "";
+// Who owns which pod (same firmware on both, told apart by MAC): first names for the phone page and the settings line.
+// A board that isn't listed gets nullptr and everything falls back to "partner".
+static const struct { const char *pod, *me, *them; } WHO[] = {{"acebe638802c", "Jade", "Lorenzo"}, {"acebe639f114", "Lorenzo", "Jade"}};
+const char *tp_my_name()      { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.me;   return nullptr; }
+const char *tp_partner_name() { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.them; return nullptr; }
 static volatile bool inSetup = false, mqttUp = false;
 static volatile int stage = 0; // 1 task up, 2 wifi mode, 3 autoConnect, 4 wifi ok, 5 mailbox loop
 static char seenFood[8][8]; static int seenIdx = 0;
@@ -164,6 +169,10 @@ static bool runPortal() {
     joinS = web->arg("s"); joinP = web->arg("p"); joinS.trim();
     if (!joinS.length() || joinS.length() > 32 || joinP.length() > 63) { web->send(400, "application/json", "{\"st\":\"fail\"}"); return; }
     joinState = 1; joinPending = true; web->send(200, "application/json", "{\"st\":\"trying\"}");
+  });
+  web->on("/who", [] { // names for the page ("Lorenzo shows offline" instead of "my partner")
+    const char *me = tp_my_name(), *them = tp_partner_name();
+    String o = "{\"me\":"; jsonStr(o, me ? me : ""); o += ",\"them\":"; jsonStr(o, them ? them : ""); o += "}"; web->send(200, "application/json", o);
   });
   web->on("/status", [] {
     lastHit = millis();

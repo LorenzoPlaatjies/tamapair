@@ -3,7 +3,7 @@
 // Three tabs: SETUP (tap a Wi-Fi -> type its password), HOW IT WORKS, HELP. No typing of Wi-Fi names, no emojis.
 // Preview it in a browser without a board: python3 tools/portal-preview/serve.py
 // Keep it small and self-contained: the phone has no internet while it's on the pod's network
-// (no web fonts, no CDNs). Endpoints: GET /nets  POST /join (s, p)  GET /status
+// (no web fonts, no CDNs). Endpoints: GET /nets  POST /join (s, p)  GET /status  GET /who (names; page falls back to "your partner")
 #pragma once
 static const char TP_PORTAL_HTML[] = R"TPHTML(<!doctype html>
 <html lang="en"><head><meta charset="utf-8">
@@ -90,20 +90,20 @@ footer{margin:34px 0 0;color:var(--grey)}
 
 <section id="how" hidden>
 <h1 class="px" data-u="4">HOW IT WORKS</h1>
-<p>Two pods. One is <b>Lorenzo's</b>, one is <b>Jade's</b>. Each pod shows a little face, and the face is the message.</p>
+<p><span id="w0">Two pods. One is <b>Lorenzo's</b>, one is <b>Jade's</b>.</span> Each pod shows a little face, and the face is the message.</p>
 <h2 class="px">1 MOODS</h2>
 <p>Swipe the face to choose how you feel. Stay on it for 3 seconds and it is sent. A heart floats off.</p>
-<p>Your pod shows your mood, then your partner's mood on their colour, back and forth.</p>
+<p>Your pod shows your mood, then <span class="them">your partner</span>'s mood on their colour, back and forth.</p>
 <h2 class="px">2 FOOD</h2>
 <p>Press the side button and tap FEED. Swipe to a snack, then tap the one in the middle.</p>
-<p>It drops onto your partner's screen. Their pet catches it and munches.</p>
+<p>It drops onto <span class="them">your partner</span>'s screen. Their pet catches it and munches.</p>
 <h2 class="px">3 POKE</h2>
 <p>Tap the face to play with it.</p>
 <h2 class="px">4 MENU</h2>
 <p>The side button opens three cards: HOME, FEED and SETTINGS. Settings has blush, swap time, their colour and brightness.</p>
 <h2 class="px">5 ANYWHERE</h2>
 <p>Each pod uses its own Wi-Fi to reach an online mailbox that only these two pods share. Same room or far apart, it works the same.</p>
-<p>If your partner's pod is off, you see the offline face. Their last mood comes back when they do.</p>
+<p>If <span class="them">your partner</span>'s pod is off, you see the offline face. Their last mood comes back when they do.</p>
 </section>
 
 <section id="help" hidden>
@@ -122,8 +122,8 @@ footer{margin:34px 0 0;color:var(--grey)}
 <p>Hold the side button for 5 seconds. The QR code comes back. Scan it and set up again.</p></details>
 <details><summary><span class="px" data-u="2">NO QR CODE ON THE SCREEN</span></summary>
 <p>The pod is already online, or the code was hidden. Press the side button, tap SETTINGS, then tap the status line at the bottom.</p></details>
-<details><summary><span class="px" data-u="2">MY PARTNER SHOWS OFFLINE</span></summary>
-<p>Their pod is switched off or has lost its Wi-Fi. Nothing to fix on yours.</p></details>
+<details><summary><span class="px" data-u="2" data-them="% SHOWS OFFLINE">MY PARTNER SHOWS OFFLINE</span></summary>
+<p><span class="them">Your partner</span>'s pod is switched off or has lost its Wi-Fi. Nothing to fix on yours.</p></details>
 <details><summary><span class="px" data-u="2">STILL STUCK</span></summary>
 <p>Unplug the pod, wait a moment, and plug it back in.</p></details>
 </section>
@@ -168,5 +168,9 @@ function poll(n){setTimeout(()=>fetch("/status").then(r=>r.json()).then(j=>{
  else if(j.st=="nonet")oops(1,"I can't see that Wi-Fi from here. Move me closer, or pick another one.");
  else if(j.st=="fail"){oops(2,"That didn't work. Double-check the password.");P.focus();P.select()}
  else poll(n+1)}).catch(()=>{if(n>6){face("yay");wait("ALMOST DONE","If the face is back on the little screen, we're all set. You can close this page.")}else poll(n+1)}),1000)}
+fetch("/who").then(r=>r.json()).then(j=>{if(!j.me||!j.them)return;
+ document.querySelectorAll(".them").forEach(e=>e.textContent=j.them);
+ document.querySelectorAll("[data-them]").forEach(e=>px(e,e.dataset.them.replace("%",j.them)));
+ const w=$("w0");w.innerHTML="This pod is <b></b>. The other one is <b></b>.";w.children[0].textContent=j.me+"'s";w.children[1].textContent=j.them+"'s"}).catch(()=>{});
 nets();
 </script></body></html>)TPHTML";
