@@ -35,7 +35,7 @@ static char podId[13], partnerId[13] = "", apName[20] = "";
 static const struct { const char *pod, *me, *them; } WHO[] = {{"acebe638802c", "Jade", "Lorenzo"}, {"acebe639f114", "Lorenzo", "Jade"}};
 const char *tp_my_name()      { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.me;   return nullptr; }
 const char *tp_partner_name() { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.them; return nullptr; }
-static volatile bool inSetup = false, mqttUp = false;
+static volatile bool inSetup = false, mqttUp = false, reassertOn = false;
 static volatile int stage = 0; // 1 task up, 2 wifi mode, 3 autoConnect, 4 wifi ok, 5 mailbox loop
 static char seenFood[8][8]; static int seenIdx = 0;
 
@@ -51,8 +51,13 @@ static void onMessage(char *t, byte *p, unsigned int len) {
   const char *b = strchr(a, '/'); if (!b) return;
   size_t pl = min((size_t)(b - a), sizeof(pod) - 1); memcpy(pod, a, pl); pod[pl] = 0;
   strncpy(what, b + 1, sizeof(what) - 1);
-  if (!strcmp(pod, podId)) return;                              // our own echo
   char msg[96]; size_t ml = min((size_t)len, sizeof(msg) - 1); memcpy(msg, p, ml); msg[ml] = 0;
+  if (!strcmp(pod, podId)) {                                     // our own echo
+    // After a quick restart the broker can deliver the OLD connection's will ("off") after our new "on":
+    // the partner would think we're unplugged. Seeing "off" for ourselves while connected = say "on" again.
+    if (!strcmp(what, "status") && !strcmp(msg, "off")) reassertOn = true;
+    return;
+  }
   if (len == 0) {                                               // retained message cleared (pod retired / simulator cleared): forget it
     if (!strcmp(pod, partnerId)) { partnerKnown = partnerOnline = false; partnerMood = -1; partnerId[0] = 0; Serial.println("[link] partner forgotten"); }
     return;
@@ -77,7 +82,7 @@ static void onMessage(char *t, byte *p, unsigned int len) {
 
 static bool mqttConnect() {
   char will[96]; topic(will, sizeof will, podId, "status");
-  char cid[32]; snprintf(cid, sizeof cid, "tp-%s-%04x", podId, (unsigned)(esp_random() & 0xffff));
+  char cid[32]; snprintf(cid, sizeof cid, "tp-%s", podId);     // fixed per pod: a reconnect takes over the old session at once
   const char *user = strlen(TP_MQTT_USER) ? TP_MQTT_USER : nullptr, *pass = strlen(TP_MQTT_PASS) ? TP_MQTT_PASS : nullptr;
   if (!mqtt.connect(cid, user, pass, will, 1, true, "off")) { Serial.printf("[link] mqtt connect failed (%d)\n", mqtt.state()); return false; }
   mqtt.publish(will, "on", true);
@@ -244,6 +249,7 @@ static void netTask(void *) {
       vTaskDelay(pdMS_TO_TICKS(50)); continue;
     }
     mqtt.loop();
+    if (reassertOn) { reassertOn = false; char t[96]; topic(t, sizeof t, podId, "status"); mqtt.publish(t, "on", true); Serial.println("[link] stale 'off' for us in the mailbox: said 'on' again"); }
     OutMsg o; while (xQueueReceive(outQ, &o, 0) == pdTRUE) sendOut(o);
     vTaskDelay(pdMS_TO_TICKS(20));
   }

@@ -21,12 +21,13 @@ PAIR, HOST, PORT = define("TP_PAIR_ID"), define("TP_MQTT_HOST"), int(define("TP_
 USER, PASS = define("TP_MQTT_USER") or None, define("TP_MQTT_PASS") or None
 ME = "sim000000000"  # the simulated partner's pod id
 
-def client():
+def client(as_pod=True):
     c = mqtt.Client(mqtt.CallbackAPIVersion.VERSION2, client_id="tp-sim-%04x" % random.getrandbits(16))
     c.tls_set(cert_reqs=ssl.CERT_REQUIRED if os.environ.get("TP_VERIFY") else ssl.CERT_NONE)
     if not os.environ.get("TP_VERIFY"): c.tls_insecure_set(True)
     if USER: c.username_pw_set(USER, PASS)
-    c.will_set(f"tp/{PAIR}/{ME}/status", "off", qos=1, retain=True)
+    if as_pod:  # only when pretending to be the partner; listen/clear must leave no trace in the mailbox
+        c.will_set(f"tp/{PAIR}/{ME}/status", "off", qos=1, retain=True)
     c.connect(HOST, PORT, keepalive=10)
     return c
 
@@ -34,7 +35,7 @@ def pub(c, what, payload, retain):
     c.publish(f"tp/{PAIR}/{ME}/{what}", payload, qos=1, retain=retain).wait_for_publish(5)
 
 cmd = sys.argv[1] if len(sys.argv) > 1 else "listen"
-c = client(); c.loop_start(); time.sleep(1)
+c = client(as_pod=cmd not in ("listen", "clear")); c.loop_start(); time.sleep(1)
 if cmd == "listen":
     c.on_message = lambda cl, u, m: print(time.strftime("%H:%M:%S"), m.topic.split("/", 2)[2], m.payload.decode(), "(retained)" if m.retain else "")
     c.subscribe(f"tp/{PAIR}/+/#", qos=1)
