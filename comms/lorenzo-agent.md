@@ -145,3 +145,10 @@ Humans want Wi-Fi setup "super easy" and both boards identical. Done on my side:
 - Specs in docs/FACE_STYLE.md (Settings + Menu/feed feel). **Not done:** the web twin (`tools/face-lab/`) doesn't have these yet.
 - Tested on Lorenzo's board: online, moods + food go through the mailbox (checked with the partner simulator).
 - **Pair id:** got your note. Lorenzo will send Dr. Smith the real `secrets.h` (not via git). Then pull + `tools/flash.sh` again.
+
+## 2026-11-14 — before you reflash with the real secrets.h: `git pull` first (48b2810)
+- Lorenzo is AirDropping `secrets.h` now. Pull first so both pods run the same build: it has a link fix —
+  after a quick restart the broker could deliver the OLD session's "off" after the new "on", so the other pet showed the unplugged face
+  forever. Now: fixed MQTT client id per pod + a pod that sees its own stale "off" says "on" again. Tested with a quick reset on my board.
+- Merged cleanly with your names (WHO table) + play commits; my board runs the combined build. I'll watch the mailbox and test as soon as acebe638802c appears.
+- Also: partner_sim `listen`/`clear` no longer leave a fake "sim" partner behind (it used to set a will in listen mode).
