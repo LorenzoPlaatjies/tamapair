@@ -32,7 +32,9 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - Offline (partner board off/unplugged): old-TV switch-off (line shrinks 5f → dot 6f → face), grey hollow eyes, unplugged cable wiggle.
 - Mood swap: my mood on black for SWAP EVERY (3/5/8 s, default 5) ↔ partner's mood for 3 s on a faint tint of THEIR COLOUR.
   Soft change, not the squash: ordered-dither dissolve (old face crumbles 4f with blue sparkles at the edge, new one fills in 4–5f),
-  background tint fades in/out over ~15 frames. Same mood on both = face stays, only the tint breathes in.
+  background tint fades in/out over ~15 frames. Same mood on both = it still crumbles + refills, so you can tell it's theirs.
+  A NEW mood from the partner shows straight away (then the rhythm carries on). Each pod remembers its own mood across
+  restarts/reflashes and re-sends it on every reconnect, so the partner never shows a stale one.
 
 ## Touch
 - **Tap = poke, never a mood change.** Frames 0–1: crackle across the whole screen and ~30% of rows jolt ±2 px sideways.
@@ -44,7 +46,10 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
   while rows rip sideways leaving blue streaks, 1 glitch frame, new face tears in from the other side (−30→−14→−4→+2→0).
 - Dropped: laugh-on-tap (looked like a chosen mood), big full-screen ripple (too much, froze on rapid taps).
 
-## Settings (button → menu → SETTINGS card). Tap a row to change it; all saved on the board. Swipe = back to the menu.
+## Settings (button → menu → SETTINGS card). Tap a row to change it. Swipe = back to the menu.
+- **Saving = same rule as moods: stay 3 s.** A tap changes the value at once (row marker blinks, status line "SAVING" + a bar
+  filling for 3 s), then "SAVED ✓". Leaving early (button / swipe) saves straight away and flashes "SAVED ✓" on the next screen.
+- First moments on the screen the status line says "TAP A ROW TO CHANGE", then the link status ("ONLINE - JADE ON").
 | Row | Choices |
 |---|---|
 | BLUSH | on / off |
@@ -53,7 +58,7 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 | TINT | FAINT / SOFT / BOLD |
 | BRIGHTNESS | 3 bars (backlight PWM) |
 | status line | NO WIFI - TAP FOR QR · CONNECTING · ONLINE - PARTNER OFF/ON |
-- Rows slide in one after another; a changed row gets a pink tick and its value nudges.
+- Rows slide in one after another; a changed row's value nudges.
 - Wi-Fi QR screen: a short button press hides it (play offline); the status line in settings brings it back.
 
 ## Menu + feed feel

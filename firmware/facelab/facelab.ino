@@ -224,7 +224,10 @@ static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter =
 static bool softT = false; // soft dissolve (mood swap with the partner) instead of squash + glitch
 static void setMood(int m) { if (m == mood && phase == HOLD) return; prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; softT = false; }
 static void swipeTo(int m, int dir) { setMood(m); swipeDir = dir; }
-static void softTo(int m) { if (m == mood && phase == HOLD) return; setMood(m); softT = true; }
+static void softTo(int m, bool force = false) { // force: dissolve even when it's the same face (the swap to/from the partner)
+  if (m == mood && phase == HOLD && !force) return;
+  prevMood = mood; mood = m; phase = OUT; pf = 0; swipeDir = 0; softT = true;
+}
 
 static void tick() {
   f++; pf++;
@@ -295,7 +298,11 @@ static int screenGlitch = 0; // frames of static when switching screens
 static int enterF = 0;       // frames since the screen opened (things pop in)
 static bool setupHidden = false; // side button on the Wi-Fi QR screen = play offline for now (setup keeps waiting; Settings brings it back)
 static const int MUNCH = 10, OFFLINE = NMOODS - 1, SWIPE_MOODS = NMOODS - 1; // offline is never picked by hand
-static void go(int s) { screen = (Screen)s; screenGlitch = 1; enterF = 0; menuPress = menuPickF = -1; Serial.printf("[face] screen %d\n", (int)s); }
+static bool savePending = false; static int toastUntil = 0;   // settings: a change saves itself after 3 s, or when you leave
+static void commitSettings();
+static void go(int s) {
+  if (screen == S_SETTINGS && s != S_SETTINGS && savePending) { commitSettings(); toastUntil = f + 40; } // "SAVED" on the way out
+  screen = (Screen)s; screenGlitch = 1; enterF = 0; menuPress = menuPickF = -1; Serial.printf("[face] screen %d\n", (int)s); }
 
 // tiny 3x5 font
 static void glyph(char ch, int x, int y, uint8_t c) {
@@ -413,21 +420,30 @@ static void drawMenu() {
   labelC(NAMES[menuSel], 34, 1);
 }
 
-// ---------- settings: tap a row to change it (saved). Swipe = back to the menu ----------
-static int rowFlash[5] = {0}, previewUntil = 0;
+// ---------- settings: tap a row to change it. It saves itself 3 s after your last tap (SAVING bar -> SAVED + tick),
+// or straight away when you leave. Swipe = back to the menu ----------
+static int rowFlash[5] = {0}, previewUntil = 0, saveAt = 0, savedUntil = 0, pendRow = -1;
+static const int SAVE_WAIT = 90;   // 3 s, same "stay = it's chosen" rule as moods
+static void tickMark(int x, int y, uint8_t c) { px(x, y + 2, c); px(x + 1, y + 3, c); px(x + 2, y + 2, c); px(x + 3, y + 1, c); px(x + 4, y, c); }
+static void commitSettings() {
+  if (!savePending) return;
+  savePending = false; savedUntil = f + 50; pendRow = -1;
+  prefs.putBool("blush", blushOn); prefs.putUChar("swap", swapS); prefs.putUChar("tintc", tintC); prefs.putUChar("tintk", tintK); prefs.putUChar("bright", bright);
+  Serial.printf("[face] settings SAVED: blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
+}
 static const int ROW_Y0 = 2, ROW_H = 7, NROWS = 5;
 static void labelR(const char *s, int xr, int y, uint8_t c) { int w = -1; for (const char *q = s; *q; q++) w += glyphW(*q) + 1; label(s, xr - w, y, c); }
 static void applyBright() { ledcWrite(PIN_BL, 255 - BRIGHT[bright]); }   // backlight is active LOW
 static void changeSetting(int r) {
-  rowFlash[r] = 8;
+  rowFlash[r] = 8; pendRow = r; savePending = true; saveAt = f + SAVE_WAIT; savedUntil = 0;   // shows at once, saves in 3 s
   switch (r) {
-    case 0: blushOn = !blushOn; prefs.putBool("blush", blushOn); break;
-    case 1: swapS = (swapS + 1) % 4; prefs.putUChar("swap", swapS); break;
-    case 2: tintC = (tintC + 1) % 5; prefs.putUChar("tintc", tintC); COL[5] = tintCol(1); previewUntil = f + 45; break;
-    case 3: tintK = (tintK + 1) % 3; prefs.putUChar("tintk", tintK); previewUntil = f + 45; break;
-    case 4: bright = (bright + 1) % 3; prefs.putUChar("bright", bright); applyBright(); break;
+    case 0: blushOn = !blushOn; break;
+    case 1: swapS = (swapS + 1) % 4; break;
+    case 2: tintC = (tintC + 1) % 5; COL[5] = tintCol(1); previewUntil = f + 45; break;
+    case 3: tintK = (tintK + 1) % 3; previewUntil = f + 45; break;
+    case 4: bright = (bright + 1) % 3; applyBright(); break;
   }
-  Serial.printf("[face] settings: blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
+  Serial.printf("[face] settings (saving in 3 s): blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
 }
 static void drawSettings() {
   memset(buf, 0, sizeof buf);
@@ -435,7 +451,8 @@ static void drawSettings() {
   for (int i = 0; i < NROWS; i++) {
     int d = enterF - i; if (d < 0) continue;                       // rows slide in one after another
     int y = ROW_Y0 + i * ROW_H, xo = d < 4 ? -(4 - d) * 6 : 0;
-    if (rowFlash[i] > 0) { rowFlash[i]--; rect(1, y, 1, 5, 2); }     // pink tick = just changed
+    if (rowFlash[i] > 0) rowFlash[i]--;
+    if (i == pendRow && savePending && (f / 6) % 2) rect(1, y + 1, 2, 3, 2);  // blinking = changed, not saved yet
     label(NAMES[i], 4 + xo, y, 1);
     int xr = 77 + xo; bool pop = rowFlash[i] > 5;                    // value nudges when it changes
     switch (i) {
@@ -454,7 +471,12 @@ static void drawSettings() {
     for (int i = 0; i < n; i++) named[i] = toupper(named[i]);
     line = named;
   }
-  if (enterF > NROWS) labelC(line, 37, ls == 3 ? 3 : 4);
+  if (savePending) {                                              // SAVING + a bar that fills over 3 s
+    int t = constrain(SAVE_WAIT - (saveAt - f), 0, SAVE_WAIT);
+    labelC("SAVING", 36, 2); rect(22, 41, 36, 1, 4); rect(22, 41, t * 36 / SAVE_WAIT, 1, 2);
+  } else if (f < savedUntil) { label("SAVED", 27, 37, 2); tickMark(48, 37, 2); }   // locked in
+  else if (enterF < 60) labelC("TAP A ROW TO CHANGE", 37, 4);   // first moments on the screen: how it works
+  else if (enterF > NROWS) labelC(line, 37, ls == 3 ? 3 : 4);
 }
 
 // ---------- home: my mood, partner's mood, sending ----------
@@ -467,7 +489,7 @@ static int arriveF = -1, arriveFood = 0, fakeFood = -1;    // fakeFood: serial t
 
 static void homeLogic() {
   uint8_t v;
-  if (tp_partner_mood(v) && v < NMOODS) partnerMood = v; else if (!fakePartner) partnerMood = -1;
+  if (!fakePartner) { if (tp_partner_mood(v) && v < NMOODS) partnerMood = v; else partnerMood = -1; } // serial 'q' wins until a restart
   bool got = tp_food_arrived(v);
   if (!got && fakeFood >= 0) { v = fakeFood; fakeFood = -1; got = true; }
   if (got && v < NFOODS) {
@@ -483,17 +505,22 @@ static void homeLogic() {
   if (screen != S_HOME) return;
   if (lastSwipeF >= 0 && f - lastSwipeF >= 90) {           // settled for 3 s
     lastSwipeF = -1; swapAt = f + 30 * max(SWAP_S[swapS], 3);
-    if (myMood != sentMood) { tp_send_mood(myMood); sentMood = myMood; sentF = 0; Serial.printf("[face] sent mood %s\n", MOODS[myMood].name); }
+    if (myMood != sentMood) { tp_send_mood(myMood); sentMood = myMood; sentF = 0; prefs.putUChar("mood", myMood); Serial.printf("[face] sent mood %s\n", MOODS[myMood].name); }
   }
   if (sentF >= 0 && ++sentF > 24) sentF = -1;
   // mood swap: mine for SWAP EVERY seconds, then theirs for 3 s on a faint background in their colour.
   // Soft dissolve both ways (not the big squash + glitch: that's for my own swipes).
   int every = SWAP_S[swapS];
-  if (partnerMood < 0 || !every) { if (showingPartner) { showingPartner = false; softTo(myMood); } }
+  static int shownPartner = -1;                               // the partner mood we last put on screen
+  if (partnerMood < 0 || !every) { shownPartner = partnerMood; if (showingPartner) { showingPartner = false; softTo(myMood); } }
+  else if (partnerMood != shownPartner && lastSwipeF < 0 && reactUntil < 0 && arriveF < 0 && phase == HOLD) {
+    shownPartner = partnerMood; showingPartner = true; swapAt = f + 90; softTo(partnerMood, true); // they just changed it: show it now
+    Serial.printf("[face] partner's new mood on screen: %s\n", MOODS[partnerMood].name);
+  }
   else if (lastSwipeF < 0 && reactUntil < 0 && arriveF < 0 && phase == HOLD && f >= swapAt) {
     showingPartner = !showingPartner;
     swapAt = f + (showingPartner ? 90 : every * 30);
-    softTo(showingPartner ? partnerMood : myMood);
+    softTo(showingPartner ? partnerMood : myMood, true);
   } else if (showingPartner && phase == HOLD && reactUntil < 0 && mood != partnerMood) softTo(partnerMood); // they changed it meanwhile
 }
 
@@ -752,6 +779,9 @@ static void renderFrame() {
     case S_SETTINGS: drawSettings(); break;
     default: renderFace(); break;
   }
+  if (!setupAp && f < toastUntil) {                               // "SAVED" + tick right after leaving settings
+    int y = screen == S_MENU ? 34 : 1; rect(0, y - 1, W, 7, 0); label("SAVED", 27, y, 2); tickMark(48, y, 2);
+  }
   if (screenGlitch > 0) { screenGlitch--; for (int i = 0; i < W * H / 8; i++) buf[random(W * H)] = random(100) < 85 ? 1 : 3; }
   // grid -> 320x170 RGB565 framebuffer, one push per frame
   // partner's mood (or a settings preview) = faint background in their colour, faded in and out
@@ -929,7 +959,9 @@ void setup() {
   for (int i = 0; i < 10 && !touchOk; i++) { Wire.beginTransmission(TOUCH_ADDR); Wire.write(0x00); Wire.write(0x00); touchOk = Wire.endTransmission() == 0; if (!touchOk) delay(100); }
   Serial.printf("[face] up. touch %s\n", touchOk ? "ok" : "not found");
   randomSeed(esp_random());
+  myMood = prefs.getUChar("mood", 0) % SWIPE_MOODS; mood = prevMood = sentMood = myMood; // same mood as before the restart
   tp_begin(OFFLINE); // Wi-Fi + mailbox in the background (tp_link.cpp)
+  tp_send_mood(myMood); // the link also repeats it on every reconnect, so the partner always has my real mood
 }
 
 void loop() {
@@ -945,6 +977,7 @@ void loop() {
   homeLogic();
   if (foodSentF >= 0 && ++foodSentF > 14) { foodSentF = -1; foodPopF = 0; }
   if (foodPopF >= 0 && ++foodPopF > 5) foodPopF = -1;
+  if (savePending && f >= saveAt) commitSettings();               // 3 s after the last settings tap
   if (menuPickF >= 0 && ++menuPickF > 5) go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS);
   renderFrame();
   uint32_t took = millis() - now; statSum += took; statN++; if (took > statMax) statMax = took;

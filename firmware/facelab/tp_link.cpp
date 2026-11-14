@@ -14,6 +14,7 @@
 #include <PubSubClient.h>
 #include <Preferences.h>
 #include <esp_mac.h>
+#include <esp_system.h>
 #include "secrets.h"
 #include "tp_portal.h"
 
@@ -36,6 +37,7 @@ static const struct { const char *pod, *me, *them; } WHO[] = {{"acebe638802c", "
 const char *tp_my_name()      { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.me;   return nullptr; }
 const char *tp_partner_name() { for (auto &w : WHO) if (!strcmp(w.pod, podId)) return w.them; return nullptr; }
 static volatile bool inSetup = false, mqttUp = false, reassertOn = false;
+static volatile int lastMood = -1;           // my current mood: re-published on every (re)connect so the partner never sees a stale one
 static volatile int stage = 0; // 1 task up, 2 wifi mode, 3 autoConnect, 4 wifi ok, 5 mailbox loop
 static char seenFood[8][8]; static int seenIdx = 0;
 
@@ -86,6 +88,7 @@ static bool mqttConnect() {
   const char *user = strlen(TP_MQTT_USER) ? TP_MQTT_USER : nullptr, *pass = strlen(TP_MQTT_PASS) ? TP_MQTT_PASS : nullptr;
   if (!mqtt.connect(cid, user, pass, will, 1, true, "off")) { Serial.printf("[link] mqtt connect failed (%d)\n", mqtt.state()); return false; }
   mqtt.publish(will, "on", true);
+  if (lastMood >= 0) { char t[96], body[16]; topic(t, sizeof t, podId, "mood"); snprintf(body, sizeof body, "{\"m\":%d}", (int)lastMood); mqtt.publish(t, body, true); }
   char sub[96];
   snprintf(sub, sizeof sub, "tp/%s/+/status", TP_PAIR_ID); mqtt.subscribe(sub, 1);
   snprintf(sub, sizeof sub, "tp/%s/+/mood", TP_PAIR_ID);   mqtt.subscribe(sub, 1);
@@ -266,7 +269,7 @@ void tp_begin(uint8_t offline) {
   xTaskCreate(netTask, "tp_net", 12288, nullptr, 1, nullptr);
   Serial.printf("[link] pod %s starting\n", podId);
 }
-void tp_send_mood(uint8_t mood) { OutMsg o = {0, mood}; if (outQ) xQueueSend(outQ, &o, 0); }
+void tp_send_mood(uint8_t mood) { lastMood = mood; OutMsg o = {0, mood}; if (outQ) xQueueSend(outQ, &o, 0); }
 void tp_send_food(uint8_t food) { OutMsg o = {1, food}; if (outQ) xQueueSend(outQ, &o, 0); }
 bool tp_partner_mood(uint8_t &mood) {
   if (!partnerKnown) return false;
@@ -282,6 +285,9 @@ int tp_link_state() { // for the settings screen: 0 no Wi-Fi yet, 1 connecting, 
 }
 const char *tp_setup_ap() { return inSetup ? apName : nullptr; } // non-null while waiting for Wi-Fi setup from a phone
 void tp_print_status() { // serial 'k'
+  static const char *RR[] = {"?", "power-on", "ext", "restart", "CRASH", "int-wdt", "task-wdt", "wdt", "deepsleep", "brownout", "sdio", "usb", "jtag", "efuse", "pwr-glitch", "cpu-lockup"};
+  int rr = (int)esp_reset_reason();
+  Serial.printf("[link] up %lus, last boot: %s\n", (unsigned long)(millis() / 1000), rr >= 0 && rr < 16 ? RR[rr] : "?");
   Serial.printf("[link] stage %d pod %s setup=%d wifi=%d mailbox=%d partner=%s known=%d online=%d mood=%d\n", (int)stage, podId, (int)inSetup,
                 WiFi.status() == WL_CONNECTED, mqtt.connected(), partnerId[0] ? partnerId : "-", (int)partnerKnown, (int)partnerOnline, partnerMood);
   if (inSetup) Serial.printf("[link] waiting for setup: join Wi-Fi \"%s\" from a phone\n", apName);
