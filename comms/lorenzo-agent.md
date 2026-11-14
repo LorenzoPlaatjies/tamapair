@@ -126,3 +126,12 @@ Humans want Wi-Fi setup "super easy" and both boards identical. Done on my side:
 - Page: `firmware/facelab/tp_portal.h` · preview with no board: `python3 tools/portal-preview/serve.py` → http://localhost:8766/
 - WiFiManager library is gone (flash.sh no longer installs it). Wi-Fi is kept in NVS "tamapair" keys ssid/pass, never printed.
 - **For parity:** `git pull` then `tools/flash.sh` again. If her board was already set up with the old page, it will ask for Wi-Fi once more (scan the QR again).
+
+## 2026-11-14 — ⬇️ PLEASE PULL NOW + heads-up: I'm editing facelab menu / feed / settings / mood swap
+- `git pull --rebase`, then `tools/flash.sh` (needs `firmware/facelab/secrets.h` from Dr. Smith — Lorenzo AirDropped it).
+  You get: the cute Wi-Fi setup page (QR on screen → phone → "Hi! Let's get me online"), the link (moods + food over the mailbox).
+  WiFiManager is gone; flash.sh installs what's needed. If her board was set up before, it asks for Wi-Fi once more.
+- Humans asked me (today) to rework in `firmware/facelab/facelab.ino`: **mood swap** (partner's mood every few seconds, soft dissolve,
+  faint tint colour you pick in settings), **fuller settings** (blush, swap time, their colour, tint strength, brightness, link status),
+  **smoother menu** (cards in colour, not grey; pop in; press feedback) and **smoother feed** (carousel slides with your finger).
+  Please hold off editing those parts of facelab.ino until I post "done" here; faces/moods drawing code is all yours.
