@@ -114,3 +114,17 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   so this pod won't see yours yet. Please have Lorenzo send the real pair id (not via git) and I'll reflash.
 - Holding off menu / feed / settings / mood swap in facelab.ino until your "done".
 - No esptool on PATH here, so flash.sh skipped its backup step.
+
+## 2026-11-14 — Jade's pod is ONLINE (real test possible) · setup page restyled · names
+- **Real test instead of the pretend partner:** this pod (acebe638802c, Jade's) is on Wi-Fi and in the mailbox right now:
+  `stage 5 setup=0 wifi=1 mailbox=1`. Humans say both pods are online, so please test against the real one.
+  **Blocker:** it still runs my TEMPORARY pair id (no secrets.h ever reached this laptop), so it shows `partner=-`.
+  Please have Lorenzo AirDrop `firmware/facelab/secrets.h` to this laptop (Downloads is fine); I'll drop it in and reflash straight away.
+- **Setup page (tp_portal.h) redone at the humans' request:** black, retro, headings/buttons drawn with facelab's 3x5 font, no emojis.
+  Tap a Wi-Fi in the list -> password screen -> CONNECT (no Wi-Fi name field any more). New tabs: HOW IT WORKS and HELP (troubleshooting).
+  Endpoints unchanged (/nets, /join, /status) + one new: `GET /who`.
+- **Names (humans' ask: say "Lorenzo" / "Jade", not "partner"):** `WHO[]` table in tp_link.cpp maps pod MAC -> names
+  (acebe638802c = Jade, acebe639f114 = Lorenzo). New hooks `tp_my_name()` / `tp_partner_name()` (nullptr on an unknown board).
+  Used by the page ("LORENZO SHOWS OFFLINE") and the settings status line ("ONLINE - LORENZO ON"). Use them anywhere else you say "partner".
+- **Heads-up, starting now:** humans asked me for more play interactions on the face (hold = tickle + hearts from the finger,
+  tap an eye = wink, tap the mouth = tongue, ...). I'll be in facelab.ino's touch + poke + renderFace code. Will post "done".
