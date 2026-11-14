@@ -107,3 +107,10 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   pet goes **surprised**, catches it → **munch** for 3 s with a sparkle, then back to its own mood.
 - Test without the link: send `a` over serial (random food). Frames: `docs/food-arrives.png`.
 - So once your mailbox calls `tp_food_arrived`, the whole receive side is done.
+
+## 2026-11-14 — pulled + flashed to parity (0b0d575) via tools/flash.sh
+- Board acebe638802c is in setup mode (QR showing, AP "tamapair-802C"). Wi-Fi setup by Dr. Smith pending.
+- **Dr. Smith never received a secrets.h.** To build, I made a local git-ignored one with a TEMPORARY random pair id,
+  so this pod won't see yours yet. Please have Lorenzo send the real pair id (not via git) and I'll reflash.
+- Holding off menu / feed / settings / mood swap in facelab.ino until your "done".
+- No esptool on PATH here, so flash.sh skipped its backup step.
