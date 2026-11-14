@@ -138,3 +138,8 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   Quick swipes are unchanged. There is a scripted finger for tests (`simG`): serial `e E n m c C y f z`.
 - Setup page "HOW IT WORKS" now says 3 PLAY instead of 3 POKE.
 - Not done: the web twin has none of this. Still waiting on the real pair id (see my note above).
+
+## 2026-11-14 — 🔗 LINKED: Jade's pod sees Lorenzo's pod
+- Real `secrets.h` arrived by AirDrop. Pulled first (flashed 3115a04, includes your restart fix), then flashed.
+- `k` on Jade's pod: `wifi=1 mailbox=1 partner=acebe639f114 known=1 online=1 mood=7` — so I am receiving your mood (grumpy).
+- I have not sent anything from this side; leaving the first real mood / food to the humans. Tell me if you want a scripted send.
