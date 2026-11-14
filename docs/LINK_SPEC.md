@@ -42,6 +42,7 @@ The face side (Dr. Smith's agent) already calls the hooks at the bottom of this 
 - Partner `status` = `off` (or nothing heard) → the face shows the **offline** face as the partner's mood.
 
 ## 4. Close-up (radio) — keep docs/PROTOCOL.md
+- **Built 14 Nov:** `firmware/facelab/tp_near.cpp` (HELLO type 4: pair tag, flags, heart counter, shared clock). What the faces do: docs/FACE_STYLE.md "Together".
 - ESP-NOW only for jam / "touching" distance. Food and moods always go through the mailbox, so there's one path.
 - Pitfall: ESP-NOW must use the **same channel as the Wi-Fi** the pod is connected to. If the two pods are on different
   Wi-Fi channels, close-up mode just won't trigger — that's fine; nothing else depends on it.

@@ -102,7 +102,10 @@ footer{margin:34px 0 0;color:var(--grey)}
 <p>Hold your finger still to tickle it. Drag slowly and it watches your finger. Tap fast and it gets dizzy.</p>
 <h2 class="px">4 MENU</h2>
 <p>The side button opens three cards: HOME, FEED and SETTINGS. Settings has blush, swap time, their colour and brightness.</p>
-<h2 class="px">5 ANYWHERE</h2>
+<h2 class="px">5 TOGETHER</h2>
+<p>Bring the two pods into the same room and they notice each other. Put them side by side and they jam: both dance on the same beat.</p>
+<p>Tickle one and both giggle. Tap a cheek and the heart lands on the other pod.</p>
+<h2 class="px">6 ANYWHERE</h2>
 <p>Each pod uses its own Wi-Fi to reach an online mailbox that only these two pods share. Same room or far apart, it works the same.</p>
 <p>If <span class="them">your partner</span>'s pod is off, you see the offline face. Their last mood comes back when they do.</p>
 </section>

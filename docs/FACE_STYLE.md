@@ -78,3 +78,18 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - No play on the offline face or while food is landing. Hearts are screen-space (from the finger), everything else moves with the face.
 - Code: `play()`, `tickPlay()`, `playEyes()`, `playOverlay()`, `drawPuffs()` in facelab.ino. Serial tests: `e E n m c C y f z`. Picture: docs/play.png.
 - **Not in the web twin yet** (`tools/face-lab/`).
+
+## Together (the pods are physically close) — sensing in `firmware/facelab/tp_near.cpp`, faces in facelab.ino `tickNear()`
+| When | The pets do |
+|---|---|
+| the other pod comes **near** (same room) | perk up: a hop, tall eyes, a pink "!" above the head |
+| **touching** (side by side) | **jam**: bounce once per beat (120 bpm, every 4th hop bigger), sway over two beats, squash on landing, eyes bop, cheeks pulse, a note floats up each beat on alternating sides |
+| one is **tickled** while together | both giggle; on the other pod the hearts drift up from below |
+| a **cheek** is tapped while together | the heart also falls onto the other pod's cheek, which glows |
+| the other pod **leaves** after 10 s or more together | a soft dissolve to the sad face for 2.5 s |
+- Both pods dance in step: the beat comes from a shared clock (`tp_beat_ms()`, the pod with the lower MAC leads) and nothing in the jam is random.
+- Closeness = signal strength of the partner's HELLO (5 per second), steadied: 0.6 s to go up, 1.5 s (touching) or 6 s (near) to go down.
+  Thresholds at the top of tp_near.cpp. Calibrate with both boards: serial `j` prints the live signal.
+- Only works when both pods are on the same Wi-Fi channel (same Wi-Fi = always fine). Otherwise they just stay "far".
+- Not sound: the board has no speaker. Not in the web twin. Serial tests: `N` pretend far/near/touching, `T` partner tickled, `H` heart arrives, `j` status.
+

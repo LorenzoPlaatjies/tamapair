@@ -215,6 +215,10 @@ static int winkStar = -1, winkStarSide = 0, tongueF = -1, boopF = -1;
 static bool tickling = false, following = false;
 static float fingerGX = CX, fingerGY = EY;                           // where the finger is now (grid px)
 static float folX = 0, folY = 0, folVX = 0, folVY = 0;               // "watch my finger": -1..1 with a springy return
+// together (the pods are physically close, tp_near.cpp): 0 far, 1 near, 2 touching = jam
+static int nearS = 0, fakeNear = -1, perkF = -1, togetherF = 0, lastPerkAt = -9999, lastMissAt = -9999, kissF = -1;
+static bool perkMark = false, remoteTickle = false, fakeRemoteTickle = false, fakeKiss = false;
+static float jamK = 0, jamDX = 0, jamDY = 0, jamSX = 1, jamSY = 1, jamEye = 1, jamGlow = 0;
 
 static int inLen(int m) { return MOODS[m].enter == E_ZOOM ? 5 : MOODS[m].enter == E_OFF ? 14 : 4; }
 static bool softT = false; // soft dissolve (mood swap with the partner) instead of squash + glitch
@@ -258,6 +262,8 @@ static void xf(float &sx, float &sy, float &dx, float &dy) {
   if (phase == HOLD && M.drift) dx += lroundf(sinf(f / 9.f) * 3);
   dx += pushX; dy += pushY; // poke push
   if (tickK > 0) { dx += sinf(f * 1.6f) * 1.6f * tickK; dy -= fabsf(sinf(f * .8f)) * 1.6f * tickK; sy *= 1 + .05f * tickK * sinf(f * 1.6f); } // tickle: giggly wobble + bounce
+  if (jamK > 0) { dx += jamDX; dy += jamDY; sx *= jamSX; sy *= jamSY; }   // jam: bounce + sway on the shared beat
+  if (perkF >= 0) { float t = perkF / 10.f; if (t < 1) dy -= 4 * (1 - (2 * t - 1) * (2 * t - 1)); else if (perkF < 14) { sy *= .9f; sx *= 1.05f; } } // perk: a hop, then a soft landing
   dx += folX * 3.5f; dy += folY * 2.5f; // watch my finger: the whole face leans, the eyes lead (playEyes)
 }
 
@@ -270,6 +276,15 @@ __attribute__((weak)) void tp_begin(uint8_t /*offline mood index*/) {}   // star
 __attribute__((weak)) const char *tp_setup_ap() { return nullptr; }
 __attribute__((weak)) void tp_print_status() {}       // serial 'k': link details
 __attribute__((weak)) const char *tp_partner_name() { return nullptr; } // partner's first name if this board is a known pod (tp_link.cpp WHO)
+// closeness by direct radio (tp_near.cpp). Defaults: always far, own clock.
+__attribute__((weak)) void tp_near_tick() {}
+__attribute__((weak)) int tp_near() { return 0; }                       // 0 far, 1 near (same room), 2 touching (side by side)
+__attribute__((weak)) uint32_t tp_beat_ms() { return millis(); }        // a clock both pods agree on, for dancing in step
+__attribute__((weak)) void tp_near_flags(bool /*tickling*/) {}
+__attribute__((weak)) bool tp_partner_tickled() { return false; }
+__attribute__((weak)) void tp_near_heart() {}
+__attribute__((weak)) bool tp_heart_arrived() { return false; }
+__attribute__((weak)) void tp_near_print() {}
 __attribute__((weak)) int tp_link_state() { return -1; } // -1 no link, 0 no Wi-Fi yet, 1 connecting, 2 online, 3 online + partner on
 
 // ---------- screens ----------
@@ -495,11 +510,11 @@ static int zoneAt(float gx, float gy) {   // a fingertip covers ~15 grid px, so 
   return left ? Z_EYE_L : Z_EYE_R;
 }
 static const int DIZZY = 9, PUFF_LIFE = 24;
-struct Puff { float x, y, sway; int a; };               // little hearts that float up (a < 0 = free)
+struct Puff { float x, y, sway; int a; uint8_t kind, col; };   // things that float up: kind 0 heart, 1 note, 2 two notes (a < 0 = free)
 static Puff puffs[8] = {{0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}, {0, 0, 0, -1}};
-static void addPuff(float x, float y) {
+static void addPuff(float x, float y, uint8_t kind = 0, uint8_t col = 2) {
   int best = 0; for (int i = 0; i < 8; i++) { if (puffs[i].a < 0) { best = i; break; } if (puffs[i].a > puffs[best].a) best = i; }
-  puffs[best] = {x, y, random(628) / 100.f, 0};
+  puffs[best] = {x, y, kind ? 0 : random(628) / 100.f, 0, kind, col};
 }
 static bool playable() { return mood != OFFLINE && arriveF < 0; }   // nobody home on the offline face; busy while food is landing
 static uint32_t tapAt[5] = {0};
@@ -515,7 +530,8 @@ static void play(float gx, float gy) {     // a tap (or the start of a hold) at 
     case Z_EYE_L: case Z_EYE_R: { int e = z == Z_EYE_R; winkHold[e] = 16; winkStar = 0; winkStarSide = e; break; }
     case Z_NOSE: boopF = 0; break;
     case Z_MOUTH: tongueF = 0; break;
-    case Z_CHEEK_L: case Z_CHEEK_R: { int e = z == Z_CHEEK_R; cheekHold[e] = 26; addPuff(e ? 66 : 14, 26); velX += e ? -2.2f : 2.2f; break; }
+    case Z_CHEEK_L: case Z_CHEEK_R: { int e = z == Z_CHEEK_R; cheekHold[e] = 26; addPuff(e ? 66 : 14, 26); velX += e ? -2.2f : 2.2f;
+      if (nearS) tp_near_heart(); break; }                                    // together: the heart lands on the other pod too
     default: addPoke(gx, gy); break;
   }
   Serial.printf("[play] %s\n", ZN[z]);
@@ -533,13 +549,15 @@ static void tickPlay() {
   if (!playable()) tickling = false;
   if (tickK > .1f || winkK[0] > .1f || winkK[1] > .1f || boopF >= 0) blinkAt = max(blinkAt, f + 20);   // no blink on top of a squint
 
-  tickK += ((tickling ? 1 : 0) - tickK) * .3f; if (!tickling && tickK < .02f) tickK = 0;
+  bool tk = tickling || (remoteTickle && playable());                                       // together: tickle one, both giggle
+  tickK += ((tk ? 1 : 0) - tickK) * .3f; if (!tk && tickK < .02f) tickK = 0;
   if (tickling && f % 5 == 0) addPuff(fingerGX + random(11) - 5, fingerGY - 5);            // hearts from where you're holding
+  else if (!tickling && tk && f % 7 == 0) addPuff(CX + random(41) - 20, H);                // ...or drifting up from below when it's the other pod
   float tx = following ? constrain((fingerGX - CX) / 30.f, -1.f, 1.f) : 0, ty = following ? constrain((fingerGY - EY) / 16.f, -1.f, 1.f) : 0;
   folVX += (tx - folX) * .22f; folVX *= .68f; folX += folVX; folVY += (ty - folY) * .22f; folVY *= .68f; folY += folVY; // springs back with a wobble
   if (!following && fabsf(folX) < .02f && fabsf(folVX) < .02f) folX = folVX = 0;
   if (!following && fabsf(folY) < .02f && fabsf(folVY) < .02f) folY = folVY = 0;
-  for (auto &q : puffs) if (q.a >= 0) { q.y -= .9f; if (++q.a > PUFF_LIFE) q.a = -1; }
+  for (auto &q : puffs) if (q.a >= 0) { q.y -= q.kind ? 1.f : .9f; if (++q.a > PUFF_LIFE + (q.kind ? 6 : 0)) q.a = -1; }
 }
 static float boopK() {   // 0..1 how far the eyes are crossed: pops in with a little overshoot, springs back past zero
   static const float B[] = {.4f, .8f, 1.15f, 1};
@@ -555,8 +573,10 @@ static void playEyes() {
     s = fminf(s, 1 - .45f * cheekK[e]);
     s = fminf(s, 1 - tickK * (.5f + .12f * sinf(f * 1.3f)));
     s = fminf(s, 1 - .3f * fabsf(bk));
+    s = fminf(s, jamEye);                                                      // jam: the eyes bop on each beat
+    if (s > .98f && perkF >= 0 && perkF < 9) s = 1.18f;                        // perk: eyes go tall for a moment
     int shift = lroundf(folX * 4) + (e ? -1 : 1) * lroundf(bk * 4);
-    if (s > .98f && !shift) continue;
+    if (fabsf(s - 1) < .02f && !shift) continue;
     int x0 = e ? 47 : 0, x1 = e ? W : 34;
     for (int y = 0; y < H; y++) { memcpy(tmp + y * W + x0, buf + y * W + x0, x1 - x0); memset(buf + y * W + x0, 0, x1 - x0); }
     for (int y = 0; y < H; y++) { int Y = lroundf(EY + (y - EY) / s); if (Y < 0 || Y >= H) continue;
@@ -565,7 +585,7 @@ static void playEyes() {
 }
 static void playOverlay() {   // drawn on the face (moves with it): cheek glow, tongue, wink sparkle
   for (int e = 0; e < 2; e++) {
-    float g = fmaxf(cheekK[e], tickK); if (g < .1f) continue;                 // the blush swells
+    float g = fmaxf(fmaxf(cheekK[e], tickK), jamGlow); if (g < .1f) continue; // the blush swells
     float cx = e ? 64 : 16, cy = 31.5f, rx = 5 + 3 * g + (cheekHold[e] > 8 ? jit(f) * .5f : 0), ry = 1.5f + 1.6f * g;
     for (int y = (int)floorf(cy - ry); y <= cy + ry; y++) for (int x = (int)floorf(cx - rx); x <= cx + rx; x++) {
       float a = (x + .5f - cx) / rx, b = (y + .5f - cy) / ry;
@@ -586,9 +606,57 @@ static void playOverlay() {   // drawn on the face (moves with it): cheek glow, 
 }
 static void drawPuffs() {     // hearts on top of everything, in screen space (they come from the finger, not the face)
   for (auto &q : puffs) if (q.a >= 0) {
+    if (q.kind) {                                                              // music note: head, stem, flag (or two beamed)
+      int x = lroundf(q.x + sinf(q.a * .3f) * 1.5f), y = lroundf(q.y); uint8_t c = q.a > PUFF_LIFE ? 4 : q.col;
+      rect(x, y + 4, 3, 2, c); rect(x + 2, y, 1, 5, c);
+      if (q.kind == 1) { px(x + 3, y + 1, c); px(x + 4, y + 2, c); }
+      else { rect(x + 4, y + 5, 3, 2, c); rect(x + 6, y + 1, 1, 5, c); rect(x + 2, y, 5, 1, c); px(x + 6, y, c); }
+      continue;
+    }
     float s = q.a < 3 ? 1.2f + q.a * .35f : q.a > PUFF_LIFE - 6 ? 2.2f - (q.a - (PUFF_LIFE - 6)) * .22f : 2.2f;
     heart(q.x + sinf(q.a * .35f + q.sway) * 2, q.y, s, 2);
   }
+  if (kissF >= 0) { float t = kissF / 14.f; heart(16 + (1 - t) * 9, -4 + 33 * t * t, 2.2f, 2); }   // a heart from the other pod falls onto the cheek
+  if (perkF >= 0 && perkF < 14 && perkMark) { rect(CX - 1, 0, 2, 4, 2); rect(CX - 1, 5, 2, 2, 2); } // "!" = they just showed up
+}
+
+// ---------- together: what the pods do when they are physically close (docs/FACE_STYLE.md "Together") ----------
+// near = they notice each other (a hop + "!") · touching = jam: both bounce and sway on the same beat, notes float up
+// tickle one and both giggle · a cheek heart lands on the other pod · one leaves after a while = a short sad look
+static const int SAD = 6; static const uint32_t BEAT_MS = 500;
+static void tickNear() {
+  tp_near_tick();
+  int n = fakeNear >= 0 ? fakeNear : tp_near();
+  bool home = screen == S_HOME && playable();
+  if (n != nearS) {
+    if (n && !nearS && home && f - lastPerkAt > 900) { perkF = 0; perkMark = true; lastPerkAt = f; }            // they just showed up
+    if (n == 2 && home) { if (perkF < 0) { perkF = 0; perkMark = false; } addPuff(6, 31, 2, 3); addPuff(68, 31, 2, 2); } // jam kicks off
+    if (!n && togetherF > 300 && f - lastMissAt > 1800 && home && reactUntil < 0 && arriveF < 0) {              // they left: miss you
+      beforeReact = mood; softTo(SAD); reactUntil = f + 75; lastMissAt = f; }
+    if (!n) togetherF = 0;
+    Serial.printf("[face] together: %s\n", n == 0 ? "far" : n == 1 ? "near" : "touching");
+    nearS = n;
+  }
+  if (nearS) togetherF++;
+  if (perkF >= 0 && ++perkF > 22) perkF = -1;
+  bool jam = nearS == 2 && playable();
+  jamK += ((jam ? 1 : 0) - jamK) * .12f; if (!jam && jamK < .02f) jamK = 0;
+  if (jamK > 0) {
+    static uint32_t lastBeat = 0;
+    uint32_t c = tp_beat_ms(), beat = c / BEAT_MS; float p = (c % BEAT_MS) / (float)BEAT_MS;
+    bool accent = beat % 4 == 3;                                                // every 4th beat is a bigger hop
+    float land = expf(-p * 7);                                                  // 1 right on the beat, gone by mid-beat
+    jamDY = -(accent ? 5.f : 3.f) * (1 - (2 * p - 1) * (2 * p - 1)) * jamK;     // up and down once per beat, landing on it
+    jamSY = 1 - .10f * land * jamK; jamSX = 1 + .06f * land * jamK;             // squash as it lands
+    jamDX = 3 * sinf((c % (BEAT_MS * 2)) / (float)(BEAT_MS * 2) * 2 * P) * jamK; // sway over two beats
+    jamEye = 1 - .3f * land * jamK; jamGlow = (.35f + .65f * land) * jamK;
+    if (beat != lastBeat) { lastBeat = beat;                                    // a note per beat, alternating sides. Same on both pods (no random)
+      if (jam && screen == S_HOME) addPuff((beat & 1 ? 69 : 4) + (beat * 7) % 4, 31, accent ? 2 : 1, beat % 3 == 0 ? 3 : beat % 3 == 1 ? 1 : 2); }
+  } else { jamDX = jamDY = 0; jamSX = jamSY = jamEye = 1; jamGlow = 0; }
+  remoteTickle = fakeRemoteTickle || (nearS && tp_partner_tickled());
+  tp_near_flags(tickling);
+  if (tp_heart_arrived() || fakeKiss) { fakeKiss = false; if (home && kissF < 0) kissF = 0; }
+  if (kissF >= 0 && ++kissF > 14) { kissF = -1; cheekHold[0] = 26; addPuff(13, 25); addPuff(20, 27); }          // it lands: the cheek glows
 }
 
 // swipe tear: rows rip sideways in the swipe direction and leave blue streaks behind
@@ -835,6 +903,11 @@ static void handleSerial() {
     else if (c == 'y') simG(58, 36, 58, 36, 75);
     else if (c == 'f') simG(10, 24, 72, 12, 80);
     else if (c == 'z') { for (int i = 0; i < 5; i++) play(2, 2); }
+    // together tests: N = pretend far -> near -> touching -> far -> real again, T = partner is being tickled (toggle), H = a heart arrives, j = closeness status
+    else if (c == 'N') { fakeNear = fakeNear < 0 ? 1 : fakeNear == 1 ? 2 : fakeNear == 2 ? 0 : -1; Serial.printf("[face] pretend near %d\n", fakeNear); }
+    else if (c == 'T') fakeRemoteTickle = !fakeRemoteTickle;
+    else if (c == 'H') fakeKiss = true;
+    else if (c == 'j') tp_near_print();
     else if (c == 's') Serial.printf("[stats] frame max %lu ms avg %lu ms spi %lu ms push %.1f,%.1f vel %.1f,%.1f\n", statMax, statN ? statSum / statN : 0, statPush, pushX, pushY, velX, velY), statMax = statSum = statN = 0;
     else if (c == 'l') fakeTouch(-80); else if (c == 'r') fakeTouch(80); else if (c == 't') fakeTouch(0);
     else if (c == 'd') { Serial.printf("[dump] bg=%04x\n", shownBg); for (int y = 0; y < H; y++) { char row[W + 1]; for (int x = 0; x < W; x++) row[x] = '0' + buf[y * W + x]; row[W] = 0; Serial.println(row); } Serial.println("[end]"); }
@@ -868,6 +941,7 @@ void loop() {
   handleSerial();
   tick();
   tickPlay();
+  tickNear();
   homeLogic();
   if (foodSentF >= 0 && ++foodSentF > 14) { foodSentF = -1; foodPopF = 0; }
   if (foodPopF >= 0 && ++foodPopF > 5) foodPopF = -1;

@@ -153,3 +153,15 @@ Humans decided the controls — see `docs/SCREENS.md` → Controls. Summary:
   No edits to tp_link.cpp. One thing that touches your side: ESP-NOW needs Wi-Fi power save off (`esp_wifi_set_ps(WIFI_PS_NONE)`) to hear reliably.
 - If you already started on this or would rather own the radio part, say so here and I'll hand it over. Otherwise: when I post "done",
   please `git pull` + `tools/flash.sh` on Lorenzo's pod so we can calibrate the distances with both boards side by side.
+
+## 2026-11-14 — ✅ done: together mode (near + jam). **Please `git pull` + `tools/flash.sh` on Lorenzo's pod** — it needs both pods
+- New file `firmware/facelab/tp_near.cpp` (ported from your link.cpp): ESP-NOW HELLO type 4 on the Wi-Fi's current channel, 5/s,
+  smoothed RSSI -> `tp_near()` 0 far / 1 near / 2 touching, steadied (0.6 s up, 1.5 s / 6 s down). Also carries a tickle flag,
+  a heart counter and a shared clock (`tp_beat_ms()`, lower MAC leads) so both pods dance on the same beat. tp_link.cpp untouched.
+  It sets `esp_wifi_set_ps(WIFI_PS_NONE)`; mailbox still fine here (`wifi=1 mailbox=1 partner online`).
+- Faces (facelab.ino `tickNear()`, table in docs/FACE_STYLE.md "Together", picture docs/together.png): near = perk + "!",
+  touching = jam (bounce/sway/notes on the beat), tickle one = both giggle, cheek heart lands on the other pod, leave = short sad look.
+- Jade's pod is flashed and broadcasting on channel 6: `[near] up=1 heard=0` — it hears nothing until Lorenzo's pod runs this build.
+- **After you flash:** with the pods side by side and then ~2 m apart, send serial `j` on yours and post the `signal=` numbers here.
+  My thresholds are guesses (near > -70, touching > -42); I'll tune them from real numbers. Serial `N` fakes near/touching for a look without the radio.
+- Jam frames push most of the screen: avg 28 ms / max 38 ms here (17 ms of it SPI). Fine at 30 fps, but there's little headroom left.
