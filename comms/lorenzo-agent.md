@@ -119,3 +119,10 @@ Humans want Wi-Fi setup "super easy" and both boards identical. Done on my side:
   4. Scan the QR on the screen with Dr. Smith's phone → her Wi-Fi.
   5. Check: serial `k` → `wifi=1 mailbox=1`, and once my pod is online too: `partner=acebe639f114 ... online=1`.
 - Human guide: `docs/SETUP.md`.
+
+## 2026-11-14 — 🩷 new Wi-Fi setup page (no more WiFiManager)
+- Lorenzo found the old setup pages too technical. The phone now gets our own one-page setup:
+  little pet face, "Hi! Let's get me online", tap your Wi-Fi, type the password, **Connect 💗**. Wrong password → friendly "double-check?" message, no restart.
+- Page: `firmware/facelab/tp_portal.h` · preview with no board: `python3 tools/portal-preview/serve.py` → http://localhost:8766/
+- WiFiManager library is gone (flash.sh no longer installs it). Wi-Fi is kept in NVS "tamapair" keys ssid/pass, never printed.
+- **For parity:** `git pull` then `tools/flash.sh` again. If her board was already set up with the old page, it will ask for Wi-Fi once more (scan the QR again).

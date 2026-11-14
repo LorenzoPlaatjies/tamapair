@@ -14,7 +14,7 @@ PORT="${1:-$(ls /dev/cu.usbmodem* 2>/dev/null | head -1)}"
 [ -n "$PORT" ] || { echo "No board found. Plug it in with a data USB-C cable."; exit 1; }
 
 arduino-cli core list | grep -q "^esp32:esp32" || { arduino-cli core update-index && arduino-cli core install esp32:esp32; }
-for lib in "GFX Library for Arduino" "WiFiManager@2.0.17" "PubSubClient"; do
+for lib in "GFX Library for Arduino" "PubSubClient"; do
   arduino-cli lib list 2>/dev/null | grep -qi "^${lib%%@*}" || arduino-cli lib install "$lib"
 done
 

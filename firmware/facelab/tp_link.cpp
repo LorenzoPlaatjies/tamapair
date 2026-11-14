@@ -9,11 +9,13 @@
 #include <Arduino.h>
 #include <WiFi.h>
 #include <WiFiClientSecure.h>
-#include <WiFiManager.h>
+#include <WebServer.h>
+#include <DNSServer.h>
 #include <PubSubClient.h>
 #include <Preferences.h>
 #include <esp_mac.h>
 #include "secrets.h"
+#include "tp_portal.h"
 
 #ifndef TP_PAIR_ID
 #error "firmware/facelab/secrets.h missing: copy secrets.example.h to secrets.h and fill it in"
@@ -89,36 +91,127 @@ static void sendOut(const OutMsg &o) {
   Serial.printf("[link] sent %s %u\n", o.kind ? "food" : "mood", o.val);
 }
 
+static void forgetWifi() { Preferences p; p.begin("tamapair", false); p.remove("ssid"); p.remove("pass"); p.end(); }
+
 static void checkResetHold() {
   static uint32_t lowSince = 0;
   if (digitalRead(PIN_BTN) == LOW) { if (!lowSince) lowSince = millis(); else if (millis() - lowSince > 5000) {
-      Serial.println("[link] button held 5 s: forgetting Wi-Fi"); WiFiManager wm; wm.resetSettings(); { Preferences p; p.begin("tamapair", false); p.putBool("wifiok", false); p.end(); } delay(200); ESP.restart(); } }
+      Serial.println("[link] button held 5 s: forgetting Wi-Fi"); forgetWifi(); delay(200); ESP.restart(); } }
   else lowSince = 0;
+}
+
+// ---------- Wi-Fi: saved network, else our own cute setup page on the phone (tp_portal.h) ----------
+// The Wi-Fi name + password live only in this pod's flash (namespace "tamapair", keys ssid/pass). Never printed.
+static String savedSsid, savedPass;
+
+// 0 = connected, 1 = wrong password / refused, 2 = network not found
+static int tryJoin(const char *ssid, const char *pass, uint32_t ms, void (*idle)() = nullptr) {
+  WiFi.begin(ssid, pass);
+  uint32_t t0 = millis(); bool sawNoNet = false;
+  while (millis() - t0 < ms) {
+    wl_status_t st = WiFi.status();
+    if (st == WL_CONNECTED) return 0;
+    if (st == WL_NO_SSID_AVAIL) sawNoNet = true;
+    if (idle) idle(); else checkResetHold();
+    vTaskDelay(pdMS_TO_TICKS(50));
+  }
+  WiFi.disconnect(false, false);              // stop trying; keeps the setup network up
+  return sawNoNet ? 2 : 1;
+}
+
+static WebServer *web; static DNSServer *dns;
+static volatile int joinState = 0;            // 0 idle, 1 trying, 2 ok, 3 wrong password, 4 network not found
+static String joinS, joinP; static volatile bool joinPending = false;
+static uint32_t lastHit = 0;
+
+static void jsonStr(String &o, const String &v) {
+  o += '"';
+  for (char c : v) { if (c == '"' || c == '\\') { o += '\\'; o += c; } else if ((uint8_t)c >= 0x20) o += c; }
+  o += '"';
+}
+static void portalPump() { dns->processNextRequest(); web->handleClient(); checkResetHold(); }
+
+static bool runPortal() {
+  WiFi.mode(WIFI_AP_STA);
+  WiFi.scanNetworks(true);                     // look around while the phone joins
+  WiFi.softAP(apName);
+  IPAddress ip = WiFi.softAPIP();
+  dns = new DNSServer(); dns->setErrorReplyCode(DNSReplyCode::NoError); dns->start(53, "*", ip);
+  web = new WebServer(80);
+  web->on("/", [] { lastHit = millis(); web->sendHeader("Cache-Control", "no-store"); web->send_P(200, "text/html", TP_PORTAL_HTML); });
+  web->on("/nets", [] {
+    lastHit = millis();
+    if (web->hasArg("again") && WiFi.scanComplete() != WIFI_SCAN_RUNNING) { WiFi.scanDelete(); WiFi.scanNetworks(true); }
+    int n = WiFi.scanComplete();
+    String o = "{\"busy\":"; o += (n == WIFI_SCAN_RUNNING) ? "true" : "false"; o += ",\"saved\":"; jsonStr(o, savedSsid); o += ",\"n\":[";
+    // strongest first, no duplicates, no hidden networks, at most 10
+    int idx[40], k = 0;
+    for (int i = 0; i < n && i < 40; i++) if (WiFi.SSID(i).length()) idx[k++] = i;
+    for (int i = 0; i < k; i++) for (int j = i + 1; j < k; j++) if (WiFi.RSSI(idx[j]) > WiFi.RSSI(idx[i])) { int t = idx[i]; idx[i] = idx[j]; idx[j] = t; }
+    int shown = 0;
+    for (int i = 0; i < k && shown < 10; i++) {
+      bool dup = false; for (int j = 0; j < i; j++) if (WiFi.SSID(idx[j]) == WiFi.SSID(idx[i])) dup = true;
+      if (dup) continue; if (shown++) o += ','; jsonStr(o, WiFi.SSID(idx[i]));
+    }
+    o += "]}"; web->send(200, "application/json", o);
+  });
+  web->on("/join", HTTP_POST, [] {
+    lastHit = millis();
+    joinS = web->arg("s"); joinP = web->arg("p"); joinS.trim();
+    if (!joinS.length() || joinS.length() > 32 || joinP.length() > 63) { web->send(400, "application/json", "{\"st\":\"fail\"}"); return; }
+    joinState = 1; joinPending = true; web->send(200, "application/json", "{\"st\":\"trying\"}");
+  });
+  web->on("/status", [] {
+    lastHit = millis();
+    static const char *ST[] = {"idle", "trying", "ok", "fail", "nonet"};
+    String o = "{\"st\":\""; o += ST[joinState]; o += "\"}"; web->send(200, "application/json", o);
+  });
+  // phones probe these to spot a sign-in network; send everything to our page so it pops up by itself
+  web->onNotFound([] { web->sendHeader("Location", String("http://") + WiFi.softAPIP().toString() + "/"); web->send(302, "text/plain", ""); });
+  web->begin();
+  inSetup = true; lastHit = millis();
+  Serial.printf("[link] setup mode: join Wi-Fi \"%s\" from a phone\n", apName);
+
+  bool ok = false;
+  for (;;) {
+    portalPump();
+    if (joinPending) {
+      joinPending = false;
+      Serial.println("[link] trying the Wi-Fi from the phone");
+      for (int i = 0; i < 20; i++) { portalPump(); vTaskDelay(pdMS_TO_TICKS(10)); } // let the "trying" reply go out
+      int r = tryJoin(joinS.c_str(), joinP.c_str(), 15000, portalPump);
+      joinState = r == 0 ? 2 : r == 1 ? 3 : 4;
+      if (r == 0) {
+        Preferences p; p.begin("tamapair", false); p.putString("ssid", joinS); p.putString("pass", joinP); p.end();
+        savedSsid = joinS; savedPass = joinP; ok = true;
+        uint32_t t0 = millis(); while (millis() - t0 < 4000) { portalPump(); vTaskDelay(pdMS_TO_TICKS(10)); } // let the phone see "yay"
+        break;
+      }
+      Serial.println(r == 1 ? "[link] that didn't work (password?)" : "[link] can't see that network");
+    }
+    // nobody on the setup page for 2 min but we know a network (e.g. the router was just rebooting): try it again
+    if (savedSsid.length() && millis() - lastHit > 120000) {
+      lastHit = millis();
+      if (tryJoin(savedSsid.c_str(), savedPass.c_str(), 15000, portalPump) == 0) { ok = true; break; }
+    }
+    vTaskDelay(pdMS_TO_TICKS(5));
+  }
+  web->stop(); dns->stop(); delete web; delete dns; web = nullptr; dns = nullptr;
+  WiFi.softAPdisconnect(true); WiFi.mode(WIFI_STA);
+  inSetup = false;
+  return ok;
 }
 
 static void netTask(void *) {
   stage = 1;
-  // 1) Wi-Fi: saved network, or a setup portal from a phone (tamapair-XXXX)
-  WiFi.mode(WIFI_STA); stage = 2;
-  WiFiManager wm;
-  wm.setDebugOutput(false);                 // never print Wi-Fi details
-  wm.setConfigPortalTimeout(0);
-  wm.setAPCallback([](WiFiManager *) { inSetup = true; Serial.printf("[link] setup mode: join Wi-Fi \"%s\" from a phone\n", apName); });
-  wm.setTitle("tamapair");
-  // keep the phone page to one job: pick your Wi-Fi, type the password, save
-  std::vector<const char *> menu = {"wifi"}; wm.setMenu(menu);
-  wm.setShowInfoErase(false); wm.setShowInfoUpdate(false); wm.setClass("invert");
-  wm.setScanDispPerc(true); wm.setMinimumSignalQuality(10);
-  // Wi-Fi saved by anything other than us (e.g. the factory demo) is ignored: straight to setup, no 30 s wait
-  Preferences p; p.begin("tamapair", false); bool ours = p.getBool("wifiok", false);
-  if (!ours && wm.getWiFiIsSaved()) { Serial.println("[link] ignoring Wi-Fi saved by older firmware"); wm.resetSettings(); }
+  // 1) Wi-Fi: the network saved by our setup page, else open the setup page (tamapair-XXXX)
+  WiFi.persistent(false);                   // we keep the network ourselves; ignore anything older firmware saved
+  WiFi.mode(WIFI_STA); WiFi.setAutoReconnect(true); stage = 2;
+  { Preferences p; p.begin("tamapair", true); savedSsid = p.getString("ssid", ""); savedPass = p.getString("pass", ""); p.end(); }
   stage = 3;
-  wm.setConnectTimeout(15); wm.setConnectRetries(2);
-  bool ok = false;
-  while (!ok) ok = wm.getWiFiIsSaved() ? wm.autoConnect(apName) : wm.startConfigPortal(apName); // nothing saved: straight to phone setup
+  bool ok = savedSsid.length() && tryJoin(savedSsid.c_str(), savedPass.c_str(), 20000) == 0;
+  if (!ok) runPortal();
   stage = 4;
-  inSetup = false;
-  p.putBool("wifiok", true); p.end();
   Serial.println("[link] Wi-Fi connected");
 
   // 2) mailbox

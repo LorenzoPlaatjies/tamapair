@@ -30,5 +30,5 @@ Controls: tap = laugh reaction, swipe = change mood. Corners stay clean (no time
 - Arduino CLI + `esp32:esp32` core 3.x, library "GFX Library for Arduino".
 - `arduino-cli compile -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M,PartitionScheme=default_8MB firmware/facelab`
 - `arduino-cli upload -b esp32:esp32:esp32c6:CDCOnBoot=cdc,FlashSize=8M,PartitionScheme=default_8MB -p <port> firmware/facelab`
-- Libraries: "GFX Library for Arduino", "WiFiManager@2.0.17", "PubSubClient". Link needs `firmware/facelab/secrets.h` (copy secrets.example.h; never commit).
+- Libraries: "GFX Library for Arduino", "PubSubClient" (Wi-Fi setup page is our own: `tp_portal.h`). Link needs `firmware/facelab/secrets.h` (copy secrets.example.h; never commit).
 - Same firmware on both boards; each pet's identity comes from its MAC address.
