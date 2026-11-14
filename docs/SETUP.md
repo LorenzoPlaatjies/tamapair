@@ -2,10 +2,11 @@
 
 1. **Plug the pod in.** If it doesn't know any Wi-Fi yet, the screen shows a **QR code** and "SCAN ME".
 2. **Point your phone camera at the QR code** and tap "Join network" (the pod's own network, e.g. `tamapair-F114`).
-3. **A cute pink page pops up by itself:** "Hi! Let's get me online". Tap your Wi-Fi name, type its password, tap **Connect 💗**.
+3. **A black retro page pops up by itself** (same pixel look as the pod). Tap your Wi-Fi in the list, type its password, tap **CONNECT**.
    (No page? Open a browser and go to `192.168.4.1`.)
-4. The page says "Yay, I'm online!", the QR code disappears and your pet's face comes back. Done — it remembers this Wi-Fi.
-   Typo? The page says "Double-check the password?" — just fix it and tap Connect again.
+4. The page says "ONLINE", the QR code disappears and your pet's face comes back. Done — it remembers this Wi-Fi.
+   Typo? The page says "Double-check the password" — just fix it and tap CONNECT again.
+   The page also has **HOW IT WORKS** and **HELP** (troubleshooting) tabs.
 
 **New place / new Wi-Fi?** Hold the side button for **5 seconds** → the QR code comes back → repeat.
 
