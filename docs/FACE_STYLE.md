@@ -47,8 +47,8 @@ idle · happy · laugh (tap reaction) · yum · love · sleepy · sad · grumpy 
 - Dropped: laugh-on-tap (looked like a chosen mood), big full-screen ripple (too much, froze on rapid taps).
 
 ## Settings (button → menu → SETTINGS card). Tap a row to change it. Swipe = back to the menu.
-- **Saving = same rule as moods: stay 3 s.** A tap changes the value at once (row marker blinks, status line "SAVING" + a bar
-  filling for 3 s), then "SAVED ✓". Leaving early (button / swipe) saves straight away and flashes "SAVED ✓" on the next screen.
+- **Saving:** a tap changes the value at once (row marker blinks, status line "SAVING" + a bar filling for 1 s),
+  then "SAVED ✓". Leaving early (button / swipe) saves straight away and flashes "SAVED ✓" on the next screen.
 - First moments on the screen the status line says "TAP A ROW TO CHANGE", then the link status ("ONLINE - JADE ON").
 | Row | Choices |
 |---|---|

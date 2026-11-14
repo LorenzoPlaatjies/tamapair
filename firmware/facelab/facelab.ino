@@ -420,10 +420,10 @@ static void drawMenu() {
   labelC(NAMES[menuSel], 34, 1);
 }
 
-// ---------- settings: tap a row to change it. It saves itself 3 s after your last tap (SAVING bar -> SAVED + tick),
+// ---------- settings: tap a row to change it. It saves itself 1 s after your last tap (SAVING bar -> SAVED + tick),
 // or straight away when you leave. Swipe = back to the menu ----------
 static int rowFlash[5] = {0}, previewUntil = 0, saveAt = 0, savedUntil = 0, pendRow = -1;
-static const int SAVE_WAIT = 90;   // 3 s, same "stay = it's chosen" rule as moods
+static const int SAVE_WAIT = 30;   // 1 s after the last tap (3 s felt too slow)
 static void tickMark(int x, int y, uint8_t c) { px(x, y + 2, c); px(x + 1, y + 3, c); px(x + 2, y + 2, c); px(x + 3, y + 1, c); px(x + 4, y, c); }
 static void commitSettings() {
   if (!savePending) return;
@@ -435,7 +435,7 @@ static const int ROW_Y0 = 2, ROW_H = 7, NROWS = 5;
 static void labelR(const char *s, int xr, int y, uint8_t c) { int w = -1; for (const char *q = s; *q; q++) w += glyphW(*q) + 1; label(s, xr - w, y, c); }
 static void applyBright() { ledcWrite(PIN_BL, 255 - BRIGHT[bright]); }   // backlight is active LOW
 static void changeSetting(int r) {
-  rowFlash[r] = 8; pendRow = r; savePending = true; saveAt = f + SAVE_WAIT; savedUntil = 0;   // shows at once, saves in 3 s
+  rowFlash[r] = 8; pendRow = r; savePending = true; saveAt = f + SAVE_WAIT; savedUntil = 0;   // shows at once, saves in 1 s
   switch (r) {
     case 0: blushOn = !blushOn; break;
     case 1: swapS = (swapS + 1) % 4; break;
@@ -443,7 +443,7 @@ static void changeSetting(int r) {
     case 3: tintK = (tintK + 1) % 3; previewUntil = f + 45; break;
     case 4: bright = (bright + 1) % 3; applyBright(); break;
   }
-  Serial.printf("[face] settings (saving in 3 s): blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
+  Serial.printf("[face] settings (saving in 1 s): blush %d swap %s colour %s tint %s bright %s\n", blushOn, SWAP_NAMES[swapS], TINT_NAMES[tintC], TINTK_NAMES[tintK], BRIGHT_NAMES[bright]);
 }
 static void drawSettings() {
   memset(buf, 0, sizeof buf);
@@ -977,7 +977,7 @@ void loop() {
   homeLogic();
   if (foodSentF >= 0 && ++foodSentF > 14) { foodSentF = -1; foodPopF = 0; }
   if (foodPopF >= 0 && ++foodPopF > 5) foodPopF = -1;
-  if (savePending && f >= saveAt) commitSettings();               // 3 s after the last settings tap
+  if (savePending && f >= saveAt) commitSettings();               // 1 s after the last settings tap
   if (menuPickF >= 0 && ++menuPickF > 5) go(menuSel == 0 ? S_HOME : menuSel == 1 ? S_FEED : S_SETTINGS);
   renderFrame();
   uint32_t took = millis() - now; statSum += took; statN++; if (took > statMax) statMax = took;
